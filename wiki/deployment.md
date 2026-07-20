@@ -95,6 +95,15 @@ replaces the upstream leaf-task progress function, which divided by zero when a 
 had no subtasks, with the reviewed manual-progress-aware implementation. Fresh-install
 CI selects the organization fields and calculates progress for a real leaf task.
 
+The fork-owned `2026072000065_task-template-accountability` migration adds immutable
+template metadata, stable item keys, descriptions, labels, hierarchy, estimates,
+launch-relative due offsets, dependencies, and idempotent project-import records. It
+also gates the SDM client-approval task from entering a done status until a task comment
+or attachment exists. The migration is intentionally rollback-compatible with older
+application images: legacy template functions receive generated stable keys, and the
+new data is preserved by the no-op down migration. Rehearse it twice against a restored
+production clone and once from an empty database before deployment.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at

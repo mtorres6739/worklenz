@@ -71,6 +71,8 @@ import { CrownOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { ensureCsrfToken, refreshCsrfToken } from '@/api/api-client';
 import { CURRENCY_OPTIONS } from '@/shared/currencies';
 import { projectFinanceApiService } from '@/api/project-finance-ratecard/project-finance.api.service';
+import { taskTemplatesApiService } from '@/api/task-templates/task-templates.api.service';
+import { ITaskTemplatesGetResponse } from '@/types/settings/task-templates.types';
 
 export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const dispatch = useAppDispatch();
@@ -79,6 +81,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation('project-drawer');
   const { t: tCommon } = useTranslation('common');
   const [form] = Form.useForm();
+  const selectedCategoryId = Form.useWatch('category_id', form);
   const [loading, setLoading] = useState<boolean>(true);
   const currentSession = useAuthService().getCurrentSession();
   const { token } = theme.useToken();
@@ -90,6 +93,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   );
   const [isFormValid, setIsFormValid] = useState<boolean>(true);
   const [drawerVisible, setDrawerVisible] = useState<boolean>(false);
+  const [taskTemplates, setTaskTemplates] = useState<ITaskTemplatesGetResponse[]>([]);
 
   // Selectors
   const { clients, loading: loadingClients } = useAppSelector(state => state.clientReducer);
@@ -195,6 +199,33 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
     loadInitialData();
   }, [dispatch, priorities.length]);
+
+  useEffect(() => {
+    if (!drawerVisible || editMode) return;
+    taskTemplatesApiService
+      .getTemplates()
+      .then(response => {
+        if (!response.done) return;
+        setTaskTemplates(response.body || []);
+      })
+      .catch(error => logger.error('Failed to load checklist templates', error));
+  }, [drawerVisible, editMode, form]);
+
+  useEffect(() => {
+    if (editMode || !selectedCategoryId || taskTemplates.length === 0) return;
+    const category = projectCategories.find(item => item.id === selectedCategoryId);
+    const recommended = taskTemplates.find(
+      template => template.template_key === 'sdm-website-prelaunch-v2'
+    );
+    const isWebsiteProject = /\bweb(site)?\b/i.test(category?.name || '');
+    const selectedTemplateId = form.getFieldValue('checklist_template_id');
+
+    if (isWebsiteProject && recommended && !selectedTemplateId) {
+      form.setFieldValue('checklist_template_id', recommended.id);
+    } else if (!isWebsiteProject && recommended?.id === selectedTemplateId) {
+      form.setFieldValue('checklist_template_id', undefined);
+    }
+  }, [editMode, form, projectCategories, selectedCategoryId, taskTemplates]);
 
   useEffect(() => {
     if (drawerVisible && projectId && project && !projectLoading) {
@@ -501,9 +532,54 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
         }
 
         if (!editMode) {
+          const createdProjectId = response.data.body.id;
+          if (values.checklist_template_id) {
+            const launchTarget = values.end_date
+              ? dayjs(values.end_date).format('YYYY-MM-DD')
+              : null;
+            const defaultAssigneeId =
+              selectedProjectManager?.id || currentSession?.team_member_id || null;
+
+            if (!launchTarget || !defaultAssigneeId) {
+              notification.warning({
+                message: t('checklistNotInstalled', { defaultValue: 'Project created without checklist' }),
+                description: t('checklistNeedsLaunchOwner', {
+                  defaultValue:
+                    'Set a launch target and project manager, then install the checklist from the project task-template menu.',
+                }),
+              });
+            } else {
+              try {
+                const checklistResponse = await taskTemplatesApiService.installTemplate(
+                  createdProjectId,
+                  {
+                    template_id: values.checklist_template_id,
+                    launch_target: launchTarget,
+                    default_assignee_id: defaultAssigneeId,
+                    destination_phase: 'Pre-Launch QA',
+                  }
+                );
+                if (!checklistResponse.done) {
+                  notification.warning({
+                    message: t('checklistNotInstalled', {
+                      defaultValue: 'Project created without checklist',
+                    }),
+                    description: checklistResponse.message || undefined,
+                  });
+                }
+              } catch (error) {
+                logger.error('Failed to install project checklist', error);
+                notification.warning({
+                  message: t('checklistNotInstalled', {
+                    defaultValue: 'Project created without checklist',
+                  }),
+                });
+              }
+            }
+          }
           trackMixpanelEvent(evt_projects_create);
           navigate(
-            `/worklenz/projects/${response.data.body.id}?tab=tasks-list&pinned_tab=tasks-list`
+            `/worklenz/projects/${createdProjectId}?tab=tasks-list&pinned_tab=tasks-list`
           );
           setTimeout(() => {
             window.location.reload();
@@ -661,6 +737,27 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             t={t}
             disabled={isFree || (!isProjectManager && !isOwnerorAdmin)}
           />
+          {!editMode && taskTemplates.length > 0 && (
+            <Form.Item
+              name="checklist_template_id"
+              label={t('checklistTemplate', { defaultValue: 'Checklist template' })}
+              extra={t('checklistTemplateHelp', {
+                defaultValue:
+                  'For website builds, keep the SDM pre-launch checklist selected and set the project end date to the launch target.',
+              })}
+            >
+              <Select
+                allowClear
+                placeholder={t('checklistTemplatePlaceholder', {
+                  defaultValue: 'Optional checklist',
+                })}
+                options={taskTemplates.map(template => ({
+                  label: template.name,
+                  value: template.id,
+                }))}
+              />
+            </Form.Item>
+          )}
           <ProjectPrioritySection
             priorities={priorities}
             form={form}

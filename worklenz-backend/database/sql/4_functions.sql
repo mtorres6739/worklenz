@@ -6575,6 +6575,20 @@ BEGIN
         RETURN TRUE;
     END IF;
 
+    -- The SDM client-approval task cannot be completed without written evidence.
+    IF EXISTS (
+        SELECT 1
+        FROM task_template_import_items
+        WHERE task_id = _task_id
+          AND item_key = 'record-client-approval'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM task_comments WHERE task_id = _task_id
+        UNION ALL
+        SELECT 1 FROM task_attachments WHERE task_id = _task_id
+    ) THEN
+        RETURN FALSE;
+    END IF;
+
     -- If the status is "done", check if any direct dependent tasks are not completed
     SELECT NOT EXISTS (
         SELECT 1
@@ -6595,14 +6609,25 @@ BEGIN
         RETURN FALSE;
     END IF;
 
-    -- Also check if any subtask of this task has incomplete dependencies
+    -- Also check if any descendant of this task has incomplete dependencies
     SELECT NOT EXISTS (
+        WITH RECURSIVE task_descendants AS (
+            SELECT id, parent_task_id
+            FROM tasks
+            WHERE parent_task_id = _task_id AND archived IS FALSE
+
+            UNION ALL
+
+            SELECT child.id, child.parent_task_id
+            FROM tasks child
+            INNER JOIN task_descendants parent ON child.parent_task_id = parent.id
+            WHERE child.archived IS FALSE
+        )
         SELECT 1
-        FROM tasks subtask
+        FROM task_descendants subtask
         INNER JOIN task_dependencies td ON td.task_id = subtask.id
         LEFT JOIN tasks dep_task ON dep_task.id = td.related_task_id
-        WHERE subtask.parent_task_id = _task_id
-          AND dep_task.status_id NOT IN (
+        WHERE dep_task.status_id NOT IN (
               SELECT id
               FROM task_statuses ts
               WHERE dep_task.project_id = ts.project_id

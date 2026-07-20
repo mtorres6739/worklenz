@@ -50,6 +50,8 @@ tags:
     description: Task management operations
   - name: Projects
     description: Project management operations
+  - name: Task Templates
+    description: Reusable task templates and controlled project imports
   - name: Teams
     description: Team and team member management
   - name: Subtasks
@@ -446,6 +448,49 @@ paths:
                 message: "Project deleted successfully"
         '403':
           description: Insufficient permissions
+
+  /projects/{projectId}/task-template-imports:
+    post:
+      operationId: importTaskTemplateIntoProject
+      tags:
+        - Task Templates
+      summary: Install a task template in a project
+      description: |
+        Transactionally installs one immutable template version. The operation creates or
+        reuses the destination phase and configured statuses, preserves task hierarchy and
+        metadata, calculates dates from the launch target, and is idempotent per project and template.
+        Requires project-manager, team-lead, admin, or owner access.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskTemplateImportRequest'
+      responses:
+        '200':
+          description: Template installed or an existing import returned without duplication
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ServerResponse'
+                  - type: object
+                    properties:
+                      body:
+                        $ref: '#/components/schemas/TaskTemplateImportResult'
+        '400':
+          description: Invalid launch target, assignee, or template content
+        '401':
+          description: Authentication or project-management permission required
+        '404':
+          description: Project or template not found in the active team
 
   /teams:
     get:
@@ -3386,6 +3431,50 @@ components:
           nullable: true
           description: Optional message (error message or success notification)
           example: "Operation completed successfully"
+
+    TaskTemplateImportRequest:
+      type: object
+      required:
+        - template_id
+        - launch_target
+        - default_assignee_id
+        - destination_phase
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        launch_target:
+          type: string
+          format: date
+          description: Production launch date used to calculate checklist due dates
+        default_assignee_id:
+          type: string
+          format: uuid
+          description: Active team member who is accountable for imported tasks
+        destination_phase:
+          type: string
+          maxLength: 100
+          example: Pre-Launch QA
+
+    TaskTemplateImportResult:
+      type: object
+      required:
+        - import_id
+        - already_imported
+        - created_count
+      properties:
+        import_id:
+          type: string
+          format: uuid
+        already_imported:
+          type: boolean
+        created_count:
+          type: integer
+          minimum: 0
+        phase_id:
+          type: string
+          format: uuid
+          nullable: true
 
     Task:
       type: object

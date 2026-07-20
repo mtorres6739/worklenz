@@ -1,12 +1,16 @@
 import { useState } from 'react';
+import dayjs from 'dayjs';
 import { safeTextDisplay } from '@/utils/html-entities';
 import {
   Button,
+  DatePicker,
   Divider,
   Drawer,
   Flex,
   Form,
+  Input,
   List,
+  notification,
   Select,
   Tag,
   Tooltip,
@@ -28,6 +32,7 @@ import { setImportTaskTemplateDrawerOpen } from '@/features/project/project.slic
 import useTabSearchParam from '@/hooks/useTabSearchParam';
 import { fetchTasksV3 } from '@/features/task-management/task-management.slice';
 import { fetchEnhancedKanbanGroups } from '@/features/enhanced-kanban/enhanced-kanban.slice';
+import { useAuthService } from '@/hooks/useAuth';
 
 // ─── Sub-component: renders one subtask row + its grandchildren ──────────────
 
@@ -94,10 +99,14 @@ const ImportTaskTemplate = () => {
   const { t } = useTranslation('project-view/import-task-templates');
   const { tab } = useTabSearchParam();
 
-  const { importTaskTemplateDrawerOpen, projectId } = useAppSelector(state => state.projectReducer);
+  const { importTaskTemplateDrawerOpen, projectId, project, members } = useAppSelector(
+    state => state.projectReducer
+  );
+  const currentSession = useAuthService().getCurrentSession();
 
   const [templates, setTemplates] = useState<ITaskTemplatesGetResponse[]>([]);
   const [tasks, setTasks] = useState<ITaskTemplateTask[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -105,6 +114,7 @@ const ImportTaskTemplate = () => {
   const handleClose = () => {
     form.resetFields();
     setTasks([]);
+    setSelectedTemplateId(null);
     dispatch(setImportTaskTemplateDrawerOpen(false));
   };
 
@@ -128,6 +138,10 @@ const ImportTaskTemplate = () => {
       const res = await taskTemplatesApiService.getTemplate(templateId);
       if (res.done) {
         setTasks(res.body?.tasks || []);
+        form.setFieldValue(
+          'destinationPhase',
+          res.body?.configuration?.phase?.name || 'Pre-Launch QA'
+        );
       }
     } catch (error) {
       logger.error('Error fetching tasks', error);
@@ -138,20 +152,33 @@ const ImportTaskTemplate = () => {
 
   const handleTemplateSelect = (value: string) => {
     if (!value) return;
+    setSelectedTemplateId(value);
     fetchTasks(value);
   };
 
   const handleAfterOpenChange = (open: boolean) => {
     if (open) {
       fetchTemplates();
+      form.setFieldsValue({
+        launchTarget: project?.end_date ? dayjs(project.end_date) : null,
+        destinationPhase: 'Pre-Launch QA',
+        defaultAssignee:
+          project?.project_manager?.id || currentSession?.team_member_id || undefined,
+      });
     }
   };
 
   const handleImport = async () => {
-    if (!projectId || tasks.length === 0) return;
+    if (!projectId || !selectedTemplateId || tasks.length === 0) return;
     try {
+      const values = await form.validateFields();
       setImporting(true);
-      const res = await taskTemplatesApiService.importTemplate(projectId, tasks);
+      const res = await taskTemplatesApiService.installTemplate(projectId, {
+        template_id: selectedTemplateId,
+        launch_target: dayjs(values.launchTarget).format('YYYY-MM-DD'),
+        default_assignee_id: values.defaultAssignee,
+        destination_phase: values.destinationPhase.trim(),
+      });
       if (res.done) {
         if (tab === 'board') {
           dispatch(fetchEnhancedKanbanGroups(projectId));
@@ -160,18 +187,18 @@ const ImportTaskTemplate = () => {
           dispatch(fetchTasksV3(projectId));
         }
         dispatch(setImportTaskTemplateDrawerOpen(false));
+        notification.success({
+          message: res.body?.already_imported
+            ? t('alreadyInstalled', { defaultValue: 'Checklist already installed' })
+            : t('importComplete', { defaultValue: 'Checklist installed' }),
+          description: res.message || undefined,
+        });
       }
     } catch (error) {
       logger.error('Error importing task template', error);
     } finally {
       setImporting(false);
     }
-  };
-
-  const handleRemoveTask = (index: number) => {
-    const newTasks = [...tasks];
-    newTasks.splice(index, 1);
-    setTasks(newTasks);
   };
 
   // Total count: parent tasks + subtasks + grandchildren
@@ -205,13 +232,48 @@ const ImportTaskTemplate = () => {
         </Flex>
       }
     >
-      <Form form={form} layout="horizontal">
-        <Form.Item name="templateName" label={t('templateName')}>
+      <Form form={form} layout="vertical">
+        <Form.Item
+          name="templateName"
+          label={t('templateName')}
+          rules={[{ required: true, message: t('templateRequired', { defaultValue: 'Select a template' }) }]}
+        >
           <Select
             options={templates.map(tmpl => ({ label: tmpl.name, value: tmpl.id }))}
             loading={loadingTemplates}
             onSelect={handleTemplateSelect}
           />
+        </Form.Item>
+        <Flex gap={12} wrap="wrap">
+          <Form.Item
+            name="launchTarget"
+            label={t('launchTarget', { defaultValue: 'Launch target' })}
+            rules={[{ required: true, message: t('launchTargetRequired', { defaultValue: 'Select the launch target' }) }]}
+            style={{ flex: 1, minWidth: 200 }}
+          >
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="defaultAssignee"
+            label={t('defaultOwner', { defaultValue: 'Default accountable owner' })}
+            rules={[{ required: true, message: t('defaultOwnerRequired', { defaultValue: 'Select an accountable owner' }) }]}
+            style={{ flex: 1, minWidth: 240 }}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={members
+                .filter(member => member.id && !member.is_pending)
+                .map(member => ({ label: member.name || member.email, value: member.id }))}
+            />
+          </Form.Item>
+        </Flex>
+        <Form.Item
+          name="destinationPhase"
+          label={t('destinationPhase', { defaultValue: 'Destination phase' })}
+          rules={[{ required: true, whitespace: true, message: t('destinationPhaseRequired', { defaultValue: 'Enter a destination phase' }) }]}
+        >
+          <Input maxLength={100} />
         </Form.Item>
         <Divider />
 
@@ -224,8 +286,8 @@ const ImportTaskTemplate = () => {
           dataSource={tasks}
           bordered
           style={{ marginTop: 12 }}
-          renderItem={(task, index) => (
-            <List.Item key={index}>
+          renderItem={task => (
+            <List.Item key={task.item_key || task.id || task.name}>
               <div style={{ width: '100%' }}>
                 {/* Level-1: parent task row */}
                 <div
@@ -250,9 +312,6 @@ const ImportTaskTemplate = () => {
                         </Tag>
                       </Tooltip>
                     )}
-                    <Button type="link" onClick={() => handleRemoveTask(index)}>
-                      {t('remove')}
-                    </Button>
                   </div>
                 </div>
 

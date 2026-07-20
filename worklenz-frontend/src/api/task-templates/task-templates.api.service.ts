@@ -3,6 +3,8 @@ import apiClient from '../api-client';
 import { IServerResponse } from '@/types/common.types';
 import {
   ITaskTemplateGetResponse,
+  ITaskTemplateImportRequest,
+  ITaskTemplateImportResponse,
   ITaskTemplateImportRow,
   ITaskTemplatesGetResponse,
   ITaskTemplateTask,
@@ -73,21 +75,36 @@ export function buildTemplateTasksPayload(
 ): ITaskTemplateTask[] {
   return projectTasks.map(task => {
     const templateTask: ITaskTemplateTask = {
+      key: task.id,
       name: task.name || '',
+      description: task.description || null,
       total_minutes: task.total_minutes ?? 0,
+      labels: (task.labels || []).flatMap(label =>
+        label.name ? [{ name: label.name, color_code: label.color_code || label.color }] : []
+      ),
     };
 
     if (includeSubtasks && task.sub_tasks && task.sub_tasks.length > 0) {
       templateTask.sub_tasks = task.sub_tasks.map(subtask => {
         const subtaskEntry = {
           name: subtask.name || '',
+          key: subtask.id,
+          description: subtask.description || null,
           total_minutes: subtask.total_minutes ?? 0,
+          labels: (subtask.labels || []).flatMap(label =>
+            label.name ? [{ name: label.name, color_code: label.color_code || label.color }] : []
+          ),
           // Level-3: include grandchildren if present
           ...(subtask.sub_tasks && subtask.sub_tasks.length > 0
             ? {
                 sub_tasks: subtask.sub_tasks.map(grandchild => ({
                   name: grandchild.name || '',
+                  key: grandchild.id,
+                  description: grandchild.description || null,
                   total_minutes: grandchild.total_minutes ?? 0,
+                  labels: (grandchild.labels || []).flatMap(label =>
+                    label.name ? [{ name: label.name, color_code: label.color_code || label.color }] : []
+                  ),
                 })),
               }
             : {}),
@@ -147,6 +164,17 @@ export const taskTemplatesApiService = {
     const url = `${rootUrl}/import/${id}`;
     const flatRows = flattenTasksForImport(tasks);
     const response = await apiClient.post<IServerResponse<ITask>>(url, flatRows);
+    return response.data;
+  },
+
+  installTemplate: async (
+    projectId: string,
+    body: ITaskTemplateImportRequest
+  ): Promise<IServerResponse<ITaskTemplateImportResponse>> => {
+    const response = await apiClient.post<IServerResponse<ITaskTemplateImportResponse>>(
+      `${API_BASE_URL}/projects/${projectId}/task-template-imports`,
+      body
+    );
     return response.data;
   },
 };

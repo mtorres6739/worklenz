@@ -1099,11 +1099,15 @@ ALTER TABLE task_subscribers
         CHECK (action = 'WHEN_DONE'::TEXT);
 
 CREATE TABLE IF NOT EXISTS task_templates (
-    id         UUID                     DEFAULT uuid_generate_v4() NOT NULL,
-    name       TEXT                                                NOT NULL,
-    team_id    UUID                                                NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL
+    id            UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    name          TEXT                                                NOT NULL,
+    team_id       UUID                                                NOT NULL,
+    template_key  TEXT,
+    version       INTEGER                  DEFAULT 1                   NOT NULL,
+    description   TEXT,
+    configuration JSONB                    DEFAULT '{}'::JSONB         NOT NULL,
+    created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
+    updated_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL
 );
 
 ALTER TABLE task_templates
@@ -1111,10 +1115,27 @@ ALTER TABLE task_templates
         PRIMARY KEY (id);
 
 CREATE TABLE IF NOT EXISTS task_templates_tasks (
-    name          TEXT              NOT NULL,
-    template_id   UUID              NOT NULL,
-    total_minutes NUMERIC DEFAULT 0 NOT NULL
+    id              UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    name            TEXT                                                NOT NULL,
+    template_id     UUID                                                NOT NULL,
+    total_minutes   NUMERIC                  DEFAULT 0                   NOT NULL,
+    parent_task_name TEXT,
+    item_key        TEXT                     DEFAULT ('legacy-' || REPLACE(uuid_generate_v4()::TEXT, '-', '')) NOT NULL,
+    parent_item_key TEXT,
+    description     TEXT,
+    labels          JSONB                    DEFAULT '[]'::JSONB         NOT NULL,
+    due_offset_days INTEGER,
+    depends_on_keys TEXT[]                   DEFAULT ARRAY[]::TEXT[]     NOT NULL,
+    sort_order      INTEGER                  DEFAULT 0                   NOT NULL
 );
+
+ALTER TABLE task_templates_tasks
+    ADD CONSTRAINT task_templates_tasks_pk
+        PRIMARY KEY (id);
+
+ALTER TABLE task_templates_tasks
+    ADD CONSTRAINT task_templates_tasks_template_item_key_uq
+        UNIQUE (template_id, item_key);
 
 ALTER TABLE task_templates_tasks
     ADD CONSTRAINT task_templates_tasks_template_id_fk
@@ -1437,6 +1458,39 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
     ADD CONSTRAINT users_pk
         PRIMARY KEY (id);
+
+CREATE TABLE IF NOT EXISTS task_template_imports (
+    id                   UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    project_id           UUID                                                NOT NULL,
+    template_id          UUID                                                NOT NULL,
+    template_version     INTEGER                  DEFAULT 1                   NOT NULL,
+    destination_phase_id UUID,
+    launch_target        DATE,
+    default_assignee_id  UUID,
+    imported_by          UUID                                                NOT NULL,
+    created_at           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (project_id, template_id),
+    FOREIGN KEY (project_id) REFERENCES projects ON DELETE CASCADE,
+    FOREIGN KEY (template_id) REFERENCES task_templates ON DELETE CASCADE,
+    FOREIGN KEY (destination_phase_id) REFERENCES project_phases ON DELETE SET NULL,
+    FOREIGN KEY (default_assignee_id) REFERENCES team_members ON DELETE SET NULL,
+    FOREIGN KEY (imported_by) REFERENCES users
+);
+
+CREATE TABLE IF NOT EXISTS task_template_import_items (
+    import_id        UUID                     NOT NULL,
+    template_task_id UUID                     NOT NULL,
+    task_id          UUID                     NOT NULL,
+    item_key         TEXT                     NOT NULL,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (import_id, template_task_id),
+    UNIQUE (import_id, item_key),
+    UNIQUE (task_id),
+    FOREIGN KEY (import_id) REFERENCES task_template_imports ON DELETE CASCADE,
+    FOREIGN KEY (template_task_id) REFERENCES task_templates_tasks ON DELETE CASCADE,
+    FOREIGN KEY (task_id) REFERENCES tasks ON DELETE CASCADE
+);
 
 ALTER TABLE project_logs
     ADD CONSTRAINT project_logs_user_id_fk

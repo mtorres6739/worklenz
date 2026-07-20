@@ -58,6 +58,9 @@ jobs:
           bash database/00_init.sh
           node scripts/migrate.js up
           psql -Atc "SELECT to_regclass('public.import_jobs') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.task_template_imports') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.task_template_import_items') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regprocedure('public.can_update_task(uuid,uuid)') IS NOT NULL" | grep -qx t
           psql -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
           SELECT register_user('{"name":"CI Owner","team_name":"CI Workspace","email":"ci-owner@example.test","password":"test-only-hash","timezone":"UTC"}'::json);
@@ -74,6 +77,20 @@ jobs:
 
             SELECT id, active_team INTO owner_id, team_id
             FROM users WHERE email = 'ci-owner@example.test';
+
+            WITH template AS (
+              INSERT INTO task_templates(name, team_id)
+              VALUES ('Legacy compatibility template', team_id)
+              RETURNING id
+            )
+            INSERT INTO task_templates_tasks(template_id, name, total_minutes, parent_task_name)
+            SELECT id, 'Legacy compatibility task', 0, NULL FROM template;
+            IF NOT EXISTS (
+              SELECT 1 FROM task_templates_tasks
+              WHERE name = 'Legacy compatibility task' AND item_key LIKE 'legacy-%'
+            ) THEN
+              RAISE EXCEPTION 'Legacy task template defaults are incompatible';
+            END IF;
             SELECT (create_project(json_build_object(
               'name', 'CI Project',
               'key', 'CIP',
@@ -200,6 +217,7 @@ jobs:
           npx vitest run
           src/utils/html-entities.test.ts
           src/utils/service-worker-security.test.ts
+          src/api/task-templates/task-templates.api.service.test.ts
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=critical
 

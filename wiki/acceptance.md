@@ -8,6 +8,8 @@
 - Production dependency audit has no critical finding.
 - Secret and container scans pass.
 - An empty disposable PostgreSQL volume completes base initialization and every migration.
+- Task-template CI preserves stable keys, descriptions, labels, estimates, and three-level
+  hierarchy while legacy templates remain compatible.
 
 ## Security and isolation
 
@@ -23,6 +25,9 @@
   notifications, refresh, WebSockets, mobile layout, and reboot recovery pass.
 - Disk, memory, container health, and backup freshness alerts are active.
 - Immutable rollback and isolated PostgreSQL plus object-storage restore drills pass.
+- Website checklist rehearsal proves 29 exact source checks, three sign-off tasks,
+  launch-relative dates, idempotent import, written approval evidence, `Not Applicable`
+  completion, and the 31-dependency launch gate.
 
 One internal business week without an unresolved severity-1 issue gates the designated
 client pilot. The isolation review and restore drill gate all-client onboarding.

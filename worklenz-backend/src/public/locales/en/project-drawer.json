@@ -48,5 +48,10 @@
   "weightedProgressTooltip": "Calculate progress based on subtask weights",
   "timeProgress": "Time-based Progress",
   "timeProgressTooltip": "Calculate progress based on estimated time",
-  "enterProjectKey": "Enter project key"
+  "enterProjectKey": "Enter project key",
+  "checklistTemplate": "Checklist template",
+  "checklistTemplateHelp": "For website builds, keep the SDM pre-launch checklist selected and set the project end date to the launch target.",
+  "checklistTemplatePlaceholder": "Optional checklist",
+  "checklistNotInstalled": "Project created without checklist",
+  "checklistNeedsLaunchOwner": "Set a launch target and project manager, then install the checklist from the project task-template menu."
 }

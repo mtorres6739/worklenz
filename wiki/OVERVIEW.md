@@ -30,6 +30,7 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - [Upgrade and rollback](upgrade.md)
 - [Backup and restore](backup-restore.md)
 - [Client onboarding](client-onboarding.md)
+- [Website pre-launch checklist](website-prelaunch-checklist.md)
 - [Acceptance and rollout gates](acceptance.md)
 
 ## Current rollout rule

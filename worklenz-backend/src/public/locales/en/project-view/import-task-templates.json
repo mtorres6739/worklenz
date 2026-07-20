@@ -7,5 +7,16 @@
   "templates": "Templates",
   "remove": "Remove",
   "cancel": "Cancel",
-  "import": "Import"
+  "import": "Import",
+  "subtasksLabel": "subtask(s)",
+  "subtaskCountTooltip": "{{count}} subtask(s) will be imported",
+  "templateRequired": "Select a template",
+  "launchTarget": "Launch target",
+  "launchTargetRequired": "Select the launch target",
+  "defaultOwner": "Default accountable owner",
+  "defaultOwnerRequired": "Select an accountable owner",
+  "destinationPhase": "Destination phase",
+  "destinationPhaseRequired": "Enter a destination phase",
+  "alreadyInstalled": "Checklist already installed",
+  "importComplete": "Checklist installed"
 }

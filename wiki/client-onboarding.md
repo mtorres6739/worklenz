@@ -19,3 +19,11 @@
 
 All-client onboarding remains blocked until API, report, search, file, and Socket.IO
 isolation have automated coverage and the designated pilot is accepted.
+
+## Website delivery projects
+
+For website builds, redesigns, migrations, and relaunches, install
+`SDM — Website Pre-Launch QA v2` and follow the dedicated
+[website checklist runbook](website-prelaunch-checklist.md). Do not apply this template
+to standalone SEO, Google Ads, or Meta Ads projects; those need their own service
+templates.

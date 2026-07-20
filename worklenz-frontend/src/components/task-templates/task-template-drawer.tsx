@@ -54,11 +54,13 @@ function countAllTasks(tasks: ITaskTemplateTask[]): number {
 function flattenToTopLevel(tasks: ITaskTemplateTask[]): ITaskTemplateTask[] {
   const flat: ITaskTemplateTask[] = [];
   for (const task of tasks) {
-    flat.push({ name: task.name, total_minutes: task.total_minutes });
+    const { sub_tasks: _taskChildren, ...topLevelTask } = task;
+    flat.push(topLevelTask);
     for (const sub of task.sub_tasks || []) {
-      flat.push({ name: sub.name, total_minutes: sub.total_minutes });
+      const { sub_tasks: _subChildren, ...topLevelSubtask } = sub;
+      flat.push(topLevelSubtask);
       for (const grand of sub.sub_tasks || []) {
-        flat.push({ name: grand.name, total_minutes: grand.total_minutes });
+        flat.push({ ...grand });
       }
     }
   }
@@ -71,18 +73,35 @@ function flattenToTopLevel(tasks: ITaskTemplateTask[]): ITaskTemplateTask[] {
  */
 function projectTasksToTemplateTasks(projectTasks: any[]): ITaskTemplateTask[] {
   return projectTasks.map(task => ({
+    key: task.id,
     name: task.name || '',
+    description: task.description || null,
     total_minutes: task.total_minutes ?? 0,
+    labels: (task.labels || []).flatMap((label: any) =>
+      label.name ? [{ name: label.name, color_code: label.color_code || label.color }] : []
+    ),
     ...(task.sub_tasks && task.sub_tasks.length > 0
       ? {
           sub_tasks: task.sub_tasks.map((sub: any) => ({
+            key: sub.id,
             name: sub.name || '',
+            description: sub.description || null,
             total_minutes: sub.total_minutes ?? 0,
+            labels: (sub.labels || []).flatMap((label: any) =>
+              label.name ? [{ name: label.name, color_code: label.color_code || label.color }] : []
+            ),
             ...(sub.sub_tasks && sub.sub_tasks.length > 0
               ? {
                   sub_tasks: sub.sub_tasks.map((grand: any) => ({
+                    key: grand.id,
                     name: grand.name || '',
+                    description: grand.description || null,
                     total_minutes: grand.total_minutes ?? 0,
+                    labels: (grand.labels || []).flatMap((label: any) =>
+                      label.name
+                        ? [{ name: label.name, color_code: label.color_code || label.color }]
+                        : []
+                    ),
                   })),
                 }
               : {}),
