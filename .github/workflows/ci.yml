@@ -55,7 +55,7 @@ jobs:
           sudo apt-get install -y postgresql-client
           bash database/00_init.sh
           node scripts/migrate.js up
-          test "$(psql -Atc \"SELECT to_regclass('public.import_jobs') IS NOT NULL\")" = "t"
+          psql -Atc "SELECT to_regclass('public.import_jobs') IS NOT NULL" | grep -qx t
           psql -v ON_ERROR_STOP=1 -c "BEGIN; SELECT register_user('{\"name\":\"CI Owner\",\"team_name\":\"CI Workspace\",\"email\":\"ci-owner@example.test\",\"password\":\"test-only-hash\",\"timezone\":\"UTC\"}'::json); ROLLBACK;"
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=critical
