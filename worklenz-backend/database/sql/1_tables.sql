@@ -457,7 +457,11 @@ CREATE TABLE IF NOT EXISTS project_members (
     project_id              UUID                                                NOT NULL,
     role_id                 UUID                                                NOT NULL,
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
-    default_view            TEXT                     DEFAULT 'TASK_LIST'::TEXT  NOT NULL
+    default_view            TEXT                     DEFAULT 'TASK_LIST'::TEXT  NOT NULL,
+    task_list_group_by      TEXT                     DEFAULT 'status'            NOT NULL
+        CHECK (task_list_group_by IN ('status', 'priority', 'phase')),
+    board_group_by          TEXT                     DEFAULT 'status'            NOT NULL
+        CHECK (board_group_by IN ('status', 'priority', 'phase'))
 );
 
 ALTER TABLE project_members

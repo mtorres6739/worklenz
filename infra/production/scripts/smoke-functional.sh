@@ -21,6 +21,16 @@ csrf_token() {
     jq -er '.token'
 }
 
+assert_done() {
+  local label="$1"
+  local response="$2"
+  if [[ "$(jq -r '.done // false' <<<"$response")" != "true" ]]; then
+    printf '%s failed: %s\n' "$label" \
+      "$(jq -c '{done, message, body}' <<<"$response")" >&2
+    return 1
+  fi
+}
+
 cleanup() {
   local token
   token="$(csrf_token 2>/dev/null || true)"
@@ -56,12 +66,12 @@ token="$(csrf_token)"
 project_json="$(curl -skS -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$project_payload" \
   "$base_url/api/v1/projects")"
-[[ "$(jq -r '.done' <<<"$project_json")" == "true" ]]
+assert_done "Project creation" "$project_json"
 project_id="$(jq -er '.body.id' <<<"$project_json")"
 
 project_read="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
   "$base_url/api/v1/projects/$project_id")"
-[[ "$(jq -r '.done' <<<"$project_read")" == "true" ]]
+assert_done "Project read" "$project_read"
 
 task_payload="$(jq -nc --arg project "$project_id" \
   '{name:"Verify production task CRUD",project_id:$project,assignees:[],labels:[],total_hours:0,total_minutes:0,description:"Launch smoke test"}')"
@@ -69,17 +79,17 @@ token="$(csrf_token)"
 task_json="$(curl -skS -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$task_payload" \
   "$base_url/api/v1/tasks")"
-[[ "$(jq -r '.done' <<<"$task_json")" == "true" ]]
+assert_done "Task creation" "$task_json"
 task_id="$(jq -er '.body.task.id' <<<"$task_json")"
 
 task_read="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
   "$base_url/api/v1/tasks/info?task_id=$task_id&project_id=$project_id")"
-[[ "$(jq -r '.done' <<<"$task_read")" == "true" ]]
+assert_done "Task read" "$task_read"
 
 token="$(csrf_token)"
 task_delete="$(curl -skS -X DELETE -H "$origin_host" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" "$base_url/api/v1/tasks/$task_id")"
-[[ "$(jq -r '.done' <<<"$task_delete")" == "true" ]]
+assert_done "Task deletion" "$task_delete"
 task_id=""
 
 update_payload="$(jq -nc --arg status "$status_id" \
@@ -88,12 +98,12 @@ token="$(csrf_token)"
 update_json="$(curl -skS -X PUT -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$update_payload" \
   "$base_url/api/v1/projects/$project_id")"
-[[ "$(jq -r '.done' <<<"$update_json")" == "true" ]]
+assert_done "Project update" "$update_json"
 
 token="$(csrf_token)"
 project_delete="$(curl -skS -X DELETE -H "$origin_host" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" "$base_url/api/v1/projects/$project_id")"
-[[ "$(jq -r '.done' <<<"$project_delete")" == "true" ]]
+assert_done "Project deletion" "$project_delete"
 project_id=""
 
 echo "Authenticated project and task CRUD smoke test passed."
