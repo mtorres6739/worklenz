@@ -9,9 +9,11 @@
 - Login, signup, password reset, password update, and invitation routes are throttled
   in the application; Nginx adds a second origin-side throttle.
 - Production SQL injection blocking is enabled.
+- PostgreSQL request filtering permits Worklenz hex colors and inspects request objects
+  with null prototypes; both paths have regression coverage.
 - File lists and downloads use project/task authorization and short-lived signed URLs.
-- SES webhook processing is disabled by default and, when enabled, requires a matching
-  SNS topic plus a valid AWS SNS signature.
+- SES webhook processing requires a matching SNS topic plus a valid AWS SNS signature.
+  Its narrow parser accepts SNS `text/plain` JSON only under `/webhook/emails/*`.
 - Sentry source-map upload is fail-closed unless `SENTRY_UPLOAD_SOURCEMAPS=true` is
   intentionally set with complete release credentials.
 

@@ -26,3 +26,24 @@
 
 One internal business week without an unresolved severity-1 issue gates the designated
 client pilot. The isolation review and restore drill gate all-client onboarding.
+
+## Internal launch record: 2026-07-20
+
+Passed before opening the internal pilot:
+
+- Immutable CI and release workflows, including fresh owner registration and session
+  deserialization, Sentry-disabled frontend build, dependency audit, secret scan,
+  runtime image checks, Nginx validation, and critical container scans.
+- Cloudflare Full Strict TLS and Access, exact public-health and signed-SNS bypasses,
+  Cloudflare-only origin ingress, restricted SSH, private data networks, and no
+  published PostgreSQL or Redis ports.
+- Public signup denial, disabled Google and Apple routes, production cookie attributes,
+  signed SES webhook confirmation, encrypted backup freshness, isolated PostgreSQL and
+  object-storage restore, and host reboot recovery.
+
+Still gated after the internal launch:
+
+- AWS SES production access and external invitation/password-reset delivery.
+- Staff, Client A, and Client B isolation fixtures across API, report, search, file,
+  and Socket.IO paths.
+- Client-facing rollout, the Kinetic Projects link, and all-client onboarding.

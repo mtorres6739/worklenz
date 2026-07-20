@@ -25,6 +25,7 @@ service names only. It must never contain credential values.
 - `worklenz-production-jwt-secret`
 - `worklenz-production-encryption-key`
 - `worklenz-production-encryption-salt`
+- `worklenz-initial-admin-password`
 
 ## Backups
 

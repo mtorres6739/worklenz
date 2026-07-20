@@ -65,6 +65,12 @@ session functions without creating the table. The fork-owned
 Fresh-install CI verifies the import table and executes owner registration inside a
 rolled-back transaction so schema initialization cannot pass while signup is broken.
 
+The CE base schema removes paid-licensing tables but leaves session functions that
+reference them. The fork-owned `2026072000015_ce_licensing_compatibility` migration
+adds empty CE compatibility tables plus the self-hosted organization override columns.
+Fresh-install CI registers and deserializes a real owner inside a rolled-back
+transaction, preventing a release where login succeeds but session verification fails.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
@@ -75,6 +81,14 @@ Google and Apple authentication require matching backend feature flags
 set. Keep both flags false for the email-and-password pilot. The backend does not
 construct or register disabled Passport strategies, and disabled provider routes return
 404. This prevents optional OAuth configuration from becoming a startup dependency.
+
+Amazon SNS posts its signed JSON envelope as `text/plain`. Only the
+`/webhook/emails/*` route family accepts that content type; the matching topic ARN and
+AWS signature are still verified before subscription confirmation or event handling.
+
+On the fixed-network Hetzner host, mask `cloud-init-hotplugd.socket` and its service.
+Ubuntu otherwise treats Docker virtual Ethernet interfaces as cloud network hot-plugs
+and marks an otherwise healthy reboot as degraded.
 
 ## Release
 
@@ -89,3 +103,8 @@ The deployer takes an encrypted pre-deploy backup, pulls immutable images, runs 
 reviewed migration job once, starts the stack, and verifies `/public/health`. A failed
 health check restores the previous application images but never pretends to reverse
 an incompatible schema migration.
+
+For a release smoke test, securely pipe the initial owner's email and password as two
+stdin lines to `/srv/worklenz/scripts/smoke-functional.sh`. The script authenticates,
+obtains a CSRF token, performs project and task create/read/update/delete checks, and
+removes its fixtures. It never reads credentials from command-line arguments.

@@ -62,9 +62,51 @@ jobs:
           BEGIN;
           SELECT register_user('{"name":"CI Owner","team_name":"CI Workspace","email":"ci-owner@example.test","password":"test-only-hash","timezone":"UTC"}'::json);
           DO $$
+          DECLARE
+            owner_id UUID;
+            team_id UUID;
+            created_project_id UUID;
+            task_id UUID;
           BEGIN
             IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
               RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
+            END IF;
+
+            SELECT id, active_team INTO owner_id, team_id
+            FROM users WHERE email = 'ci-owner@example.test';
+            SELECT (create_project(json_build_object(
+              'name', 'CI Project',
+              'key', 'CIP',
+              'color_code', '#1677ff',
+              'status_id', (SELECT id FROM sys_project_statuses WHERE is_default IS TRUE LIMIT 1),
+              'team_id', team_id,
+              'user_id', owner_id,
+              'project_created_log', '@user created the project',
+              'project_member_added_log', '@user joined the project'
+            )) ->> 'id')::UUID INTO created_project_id;
+            IF created_project_id IS NULL THEN
+              RAISE EXCEPTION 'Fresh CE project could not be created';
+            END IF;
+
+            SELECT (create_task(json_build_object(
+              'name', 'CI Task',
+              'project_id', created_project_id,
+              'reporter_id', owner_id,
+              'team_id', team_id,
+              'assignees', json_build_array(),
+              'attachments', json_build_array(),
+              'labels', json_build_array(),
+              'total_minutes', 0,
+              'status_id', (
+                SELECT ts.id
+                FROM task_statuses ts
+                WHERE ts.project_id = created_project_id
+                ORDER BY ts.sort_order
+                LIMIT 1
+              )
+            )) ->> 'id')::UUID INTO task_id;
+            IF task_id IS NULL THEN
+              RAISE EXCEPTION 'Fresh CE task could not be created';
             END IF;
           END
           $$;

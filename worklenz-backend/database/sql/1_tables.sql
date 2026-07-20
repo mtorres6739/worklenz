@@ -532,7 +532,12 @@ CREATE TABLE IF NOT EXISTS projects (
     hours_per_day          INTEGER                  DEFAULT 8,
     health_id              UUID,
     estimated_working_days INTEGER                  DEFAULT 0,
-    priority_id            UUID
+    priority_id            UUID,
+    use_manual_progress    BOOLEAN                  DEFAULT FALSE NOT NULL,
+    use_weighted_progress  BOOLEAN                  DEFAULT FALSE NOT NULL,
+    use_time_progress      BOOLEAN                  DEFAULT FALSE NOT NULL,
+    auto_assign_task_creator BOOLEAN                DEFAULT FALSE NOT NULL,
+    restrict_task_creation BOOLEAN                  DEFAULT FALSE NOT NULL
 );
 
 ALTER TABLE projects
