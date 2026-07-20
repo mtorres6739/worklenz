@@ -30,7 +30,10 @@ docker compose --env-file .env --env-file .release.env -f compose.yml \
 
 pg_restore --list "$dump_file" >/dev/null
 age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted_file" "$dump_file"
-sha256sum "$encrypted_file" > "${encrypted_file}.sha256"
+(
+  cd "$tmp_dir"
+  sha256sum "$(basename "$encrypted_file")" > "$(basename "${encrypted_file}.sha256")"
+)
 
 export AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"

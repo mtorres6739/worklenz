@@ -22,22 +22,31 @@ export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
 key="$(aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3api list-objects-v2 \
   --bucket "$BACKUP_S3_BUCKET" --prefix postgres/daily/ \
-  --query 'sort_by(Contents,&LastModified)[-1].Key' --output text)"
+  --query 'sort_by(Contents[?ends_with(Key, `.dump.age`)],&LastModified)[-1].Key' --output text)"
 [[ "$key" != "None" ]] || { echo "No backup available for restore drill" >&2; exit 1; }
 
 aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3 cp \
   "s3://${BACKUP_S3_BUCKET}/${key}" "$tmp_dir/backup.age" --only-show-errors
+aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3 cp \
+  "s3://${BACKUP_S3_BUCKET}/${key}.sha256" "$tmp_dir/backup.age.sha256" --only-show-errors
+expected_checksum="$(awk 'NR == 1 { print $1 }' "$tmp_dir/backup.age.sha256")"
+actual_checksum="$(sha256sum "$tmp_dir/backup.age" | awk '{ print $1 }')"
+[[ "$actual_checksum" == "$expected_checksum" ]] || {
+  echo "Encrypted backup checksum mismatch" >&2
+  exit 1
+}
 age -d -i "$BACKUP_AGE_IDENTITY_FILE" -o "$tmp_dir/backup.dump" "$tmp_dir/backup.age"
 pg_restore --list "$tmp_dir/backup.dump" >/dev/null
 
-docker run -d --name "$container_name" \
+docker run -d --name "$container_name" --user postgres \
   -e POSTGRES_USER=restore -e POSTGRES_PASSWORD=restore -e POSTGRES_DB=restore \
   "$DATABASE_IMAGE" >/dev/null
 for _ in {1..30}; do
   docker exec "$container_name" pg_isready -U restore -d restore >/dev/null 2>&1 && break
   sleep 2
 done
-docker exec -i "$container_name" pg_restore -U restore -d restore --clean --if-exists < "$tmp_dir/backup.dump"
+docker exec -i "$container_name" pg_restore -U restore -d restore \
+  --clean --if-exists --no-owner --no-privileges < "$tmp_dir/backup.dump"
 docker exec "$container_name" psql -U restore -d restore -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" | grep -Eq '^[1-9][0-9]*$'
 

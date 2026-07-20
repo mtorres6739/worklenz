@@ -16,7 +16,7 @@ export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
 latest="$(aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3api list-objects-v2 \
   --bucket "$BACKUP_S3_BUCKET" --prefix postgres/daily/ \
-  --query 'sort_by(Contents,&LastModified)[-1].LastModified' --output text)"
+  --query 'sort_by(Contents[?ends_with(Key, `.dump.age`)],&LastModified)[-1].LastModified' --output text)"
 
 [[ "$latest" != "None" ]] || { echo "No daily backup found" >&2; exit 1; }
 latest_epoch="$(date -d "$latest" +%s)"

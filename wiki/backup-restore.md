@@ -18,9 +18,10 @@
 
 Run `/srv/worklenz/scripts/restore-drill.sh` from an isolated host with the age identity
 available only for the duration of the drill. The script downloads and decrypts the
-latest dump, restores it into a disposable PostgreSQL container, verifies public tables,
-and retrieves a sample attachment. Record the date, commit SHA, backup key, duration,
-and result without recording secret material.
+latest encrypted dump, verifies its uploaded SHA-256 sidecar, restores it into a
+disposable PostgreSQL container, verifies public tables, and retrieves a sample
+attachment. Record the date, commit SHA, backup key, duration, and result without
+recording secret material.
 
 RPO is 24 hours. RTO is four hours. A successful isolated restore is mandatory before
 the first client pilot and after material database or backup changes.

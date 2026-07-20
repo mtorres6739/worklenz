@@ -58,7 +58,18 @@ jobs:
           bash database/00_init.sh
           node scripts/migrate.js up
           psql -Atc "SELECT to_regclass('public.import_jobs') IS NOT NULL" | grep -qx t
-          psql -v ON_ERROR_STOP=1 -c "BEGIN; SELECT register_user('{\"name\":\"CI Owner\",\"team_name\":\"CI Workspace\",\"email\":\"ci-owner@example.test\",\"password\":\"test-only-hash\",\"timezone\":\"UTC\"}'::json); ROLLBACK;"
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          SELECT register_user('{"name":"CI Owner","team_name":"CI Workspace","email":"ci-owner@example.test","password":"test-only-hash","timezone":"UTC"}'::json);
+          DO $$
+          BEGIN
+            IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
+              RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
+            END IF;
+          END
+          $$;
+          ROLLBACK;
+          SQL
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=critical
 

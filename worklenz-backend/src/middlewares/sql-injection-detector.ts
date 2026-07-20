@@ -132,7 +132,7 @@ function checkObjectForInjection(obj: any, path: string = ''): { found: boolean;
   
   if (typeof obj === 'object') {
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const result = checkObjectForInjection(obj[key], path ? `${path}.${key}` : key);
         if (result) return result;
       }
@@ -255,7 +255,7 @@ export const sqlInjectionDetector = (req: Request, res: Response, next: NextFunc
 const attackAttempts = new Map<string, { count: number; firstAttempt: number }>();
 
 // Clean up old entries every hour
-setInterval(() => {
+const attackAttemptCleanupTimer = setInterval(() => {
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
   for (const [ip, data] of attackAttempts.entries()) {
     if (data.firstAttempt < oneHourAgo) {
@@ -263,6 +263,7 @@ setInterval(() => {
     }
   }
 }, 60 * 60 * 1000);
+attackAttemptCleanupTimer.unref();
 
 /**
  * Enhanced detector with IP blocking
