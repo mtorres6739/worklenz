@@ -3,7 +3,8 @@
 ## Required access
 
 - Hetzner Cloud API token for the target project.
-- A dedicated Worklenz Hetzner Object Storage key pair generated in Hetzner Console.
+- A Worklenz-only Cloudflare R2 infrastructure token plus separate bucket-scoped S3
+  credentials for attachments and backups.
 - A least-privilege Cloudflare token with DNS, Zone Settings, and Access edit rights
   for `myfusionadmin.com`.
 - GitHub package read access on the server and package write access in CI.
@@ -12,13 +13,22 @@
 Read credentials from the secret environment by variable name. Do not copy unrelated
 global credentials into `/srv/worklenz/.env`.
 
+## Local credential inventory
+
+Production material is stored in macOS Keychain under account
+`worklenz-production`. The service names are documented in
+`infra/production/KEYCHAIN.md`; values must never be copied into this wiki, source,
+logs, or command output.
+
 ## Provision
 
 1. Load `HETZNER_API_TOKEN` and set `ADMIN_SSH_CIDRS`.
 2. Run `infra/hetzner/provision.sh`. It creates the dedicated CCX13, installs the
    host baseline, attaches Cloudflare-only web ingress, and limits SSH.
-3. Generate a dedicated S3 key pair in Hetzner Console, load only that pair, and run
-   `infra/object-storage/provision-buckets.sh`.
+3. Load `CF_ACCOUNT_ID` and `CF_R2_ADMIN_API_TOKEN`, then run
+   `infra/object-storage/provision-buckets.sh`. It creates private Eastern North America
+   R2 buckets, lifecycle rules, and backup retention locks. Load the separate
+   bucket-scoped S3 credentials only into the matching application or backup variables.
 4. Create `/srv/worklenz`, copy the immutable release bundle, set owner-only
    permissions, and populate `.env` from `.env.production.example`.
 5. Install the Cloudflare origin certificate at `tls/origin.pem` and

@@ -17,6 +17,8 @@ trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true; rm -rf "$tmp_dir"'
 export AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$BACKUP_S3_REGION"
+export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
 key="$(aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3api list-objects-v2 \
   --bucket "$BACKUP_S3_BUCKET" --prefix postgres/daily/ \
@@ -39,6 +41,9 @@ docker exec -i "$container_name" pg_restore -U restore -d restore --clean --if-e
 docker exec "$container_name" psql -U restore -d restore -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" | grep -Eq '^[1-9][0-9]*$'
 
+export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION="$S3_REGION"
 sample_key="$(aws --endpoint-url "$S3_ENDPOINT" s3api list-objects-v2 --bucket "$S3_BUCKET" \
   --max-items 1 --query 'Contents[0].Key' --output text)"
 if [[ "$sample_key" != "None" ]]; then

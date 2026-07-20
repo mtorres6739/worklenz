@@ -35,6 +35,8 @@ sha256sum "$encrypted_file" > "${encrypted_file}.sha256"
 export AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$BACKUP_S3_REGION"
+export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 key="postgres/${prefix}/$(basename "$encrypted_file")"
 
 aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3 cp "$encrypted_file" \

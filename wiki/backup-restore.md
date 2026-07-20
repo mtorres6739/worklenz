@@ -9,8 +9,10 @@
   retained for 30 days.
 - The backup monitor fails when no daily artifact is present or the newest artifact is
   older than 30 hours.
-- The attachment bucket is private and versioned; incomplete multipart uploads and old
-  noncurrent versions are cleaned by lifecycle policy.
+- The attachment bucket is private, uses unique non-overwriting object keys, and aborts
+  incomplete multipart uploads after one day. R2 does not expose S3 bucket versioning.
+- Backup objects use timestamped immutable keys. R2 bucket locks prevent overwrite or
+  deletion for the full 30-day daily, 12-month monthly, and 30-day pre-deploy windows.
 
 ## Restore drill
 

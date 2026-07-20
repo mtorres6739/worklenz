@@ -57,6 +57,8 @@ const s3Client = new S3Client({
   },
   endpoint: getEndpointFromUrl(),
   forcePathStyle: S3_FORCE_PATH_STYLE,
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
 });
 
 // Log the storage configuration

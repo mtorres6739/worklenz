@@ -18,8 +18,9 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - Cloudflare proxy and Access in front of a Cloudflare-only Hetzner origin firewall.
 - Full Strict TLS terminates at the Nginx gateway using an origin certificate.
 - PostgreSQL and Redis have no published ports and use a private Docker network.
-- Attachments and encrypted backups use separate private, versioned Hetzner Object
-  Storage buckets. Objects are never anonymously readable.
+- Attachments and encrypted backups use separate private Cloudflare R2 buckets placed
+  near the Ashburn origin. Objects are never anonymously readable. Backup prefixes use
+  lifecycle retention plus bucket locks; application uploads use unique object keys.
 - SES credentials are independent of storage credentials.
 
 ## Runbooks

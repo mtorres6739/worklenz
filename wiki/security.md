@@ -17,9 +17,11 @@
 
 ## Credential separation
 
-Generate Worklenz-only database, Redis, session, cookie, JWT, encryption, backup, S3,
-and SES secrets. Keep `/srv/worklenz/.env` at mode `0600`. Never expose secrets through
-frontend variables, logs, wiki files, or GitHub source.
+Generate Worklenz-only database, Redis, session, cookie, JWT, encryption, backup, R2,
+and SES secrets. Use separate bucket-scoped R2 credentials for attachments and backups,
+and keep the R2 infrastructure token off the server. Keep `/srv/worklenz/.env` at mode
+`0600`. Never expose secrets through frontend variables, logs, wiki files, or GitHub
+source.
 
 ## Dependency policy
 
