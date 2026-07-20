@@ -321,7 +321,8 @@ CREATE TABLE IF NOT EXISTS organizations (
     updated_at               TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     license_type_id          UUID,
     is_lkr_billing           BOOLEAN                  DEFAULT FALSE,
-    working_hours            DOUBLE PRECISION         DEFAULT 8                  NOT NULL
+    working_hours            DOUBLE PRECISION         DEFAULT 8                  NOT NULL,
+    restrict_task_creation   BOOLEAN                  DEFAULT FALSE               NOT NULL
 );
 
 ALTER TABLE organizations

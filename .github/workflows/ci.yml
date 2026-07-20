@@ -108,6 +108,10 @@ jobs:
             FROM project_members pm
             WHERE pm.project_id = created_project_id;
 
+            IF is_task_creation_restricted(owner_id, created_project_id) THEN
+              RAISE EXCEPTION 'Fresh CE owner was incorrectly blocked from task creation';
+            END IF;
+
             SELECT (create_task(json_build_object(
               'name', 'CI Task',
               'project_id', created_project_id,
