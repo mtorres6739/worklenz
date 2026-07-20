@@ -42,6 +42,12 @@ app.set("trust proxy", 1);
 // Basic middleware setup
 app.use(compression());
 app.use(logger("dev"));
+// Amazon SNS delivers signed JSON envelopes as text/plain. Keep this parser
+// scoped to the SES webhook surface so other text payloads remain untouched.
+app.use("/webhook/emails", express.json({
+  limit: "1mb",
+  type: ["application/json", "text/plain"],
+}));
 app.use(express.json({
   limit: "50mb",
   verify: (req: Request & { rawBody?: string }, _res, buf) => {
