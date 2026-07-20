@@ -12,6 +12,10 @@
 - PostgreSQL request filtering permits Worklenz hex colors and inspects request objects
   with null prototypes; both paths have regression coverage.
 - File lists and downloads use project/task authorization and short-lived signed URLs.
+- The service worker caches only same-origin static assets. Authentication, API, CSRF,
+  health, webhook, and socket responses bypass browser caches so authenticated data
+  cannot survive logout or be replayed to another user. Protected manifest and static
+  fetches include the Cloudflare Access session credential.
 - SES webhook processing requires a matching SNS topic plus a valid AWS SNS signature.
   Its narrow parser accepts SNS `text/plain` JSON only under `/webhook/emails/*`.
 - Sentry source-map upload is fail-closed unless `SENTRY_UPLOAD_SOURCEMAPS=true` is

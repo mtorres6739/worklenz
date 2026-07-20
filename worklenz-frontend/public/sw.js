@@ -24,23 +24,14 @@ const STATIC_CACHE_URLS = [
   // Ant Design and other critical CSS/JS will be cached as they're requested
 ];
 
-// API endpoints that can be cached
-const CACHEABLE_API_PATTERNS = [
-  /\/api\/project-categories/,
-  /\/api\/project-statuses/,
-  /\/api\/task-priorities/,
-  /\/api\/task-statuses/,
-  /\/api\/job-titles/,
-  /\/api\/teams\/\d+\/members/,
-  /\/api\/auth\/user/, // Cache user info for offline access
-];
-
 // Resources that should never be cached
 const NEVER_CACHE_PATTERNS = [
-  /\/api\/auth\/login/,
-  /\/api\/auth\/logout/,
-  /\/api\/notifications/,
-  /\/socket\.io/,
+  /^\/api\//,
+  /^\/secure\//,
+  /^\/csrf-token$/,
+  /^\/public\//,
+  /^\/webhook\//,
+  /^\/socket(?:\.io)?\//,
   /\.hot-update\./,
   /sw\.js$/,
   /version\.json$/,
@@ -56,7 +47,9 @@ self.addEventListener('install', event => {
     (async () => {
       try {
         const cache = await caches.open(CACHE_NAMES.STATIC);
-        await cache.addAll(STATIC_CACHE_URLS);
+        await cache.addAll(
+          STATIC_CACHE_URLS.map(url => new Request(url, { credentials: 'include' }))
+        );
         console.log('Service Worker: Static resources cached');
 
         // Skip waiting to activate immediately
@@ -99,8 +92,13 @@ self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests and browser extensions
-  if (request.method !== 'GET' || NEVER_CACHE_PATTERNS.some(pattern => pattern.test(url.href))) {
+  // Only cache same-origin, non-sensitive GET requests. Authenticated application
+  // responses must never survive logout or be replayed to a different user.
+  if (
+    url.origin !== self.location.origin ||
+    request.method !== 'GET' ||
+    NEVER_CACHE_PATTERNS.some(pattern => pattern.test(url.pathname))
+  ) {
     return;
   }
 
@@ -160,7 +158,7 @@ async function cacheFirstStrategy(request, cacheName) {
   }
 
   try {
-    const networkResponse = await fetch(request);
+    const networkResponse = await fetch(request, { credentials: 'include' });
     if (networkResponse.status === 200) {
       // Clone before caching as response can only be used once
       const responseClone = networkResponse.clone();
@@ -178,7 +176,7 @@ async function networkFirstStrategy(request, cacheName) {
   const cache = await caches.open(cacheName);
 
   try {
-    const networkResponse = await fetch(request);
+    const networkResponse = await fetch(request, { credentials: 'include' });
 
     if (networkResponse.status === 200) {
       // Cache successful responses
@@ -205,7 +203,7 @@ async function staleWhileRevalidateStrategy(request, cacheName) {
   const cachedResponse = await cache.match(request);
 
   // Fetch from network in background
-  const networkResponsePromise = fetch(request)
+  const networkResponsePromise = fetch(request, { credentials: 'include' })
     .then(async networkResponse => {
       if (networkResponse.status === 200) {
         const responseClone = networkResponse.clone();
@@ -257,10 +255,7 @@ function isImageRequest(url) {
 }
 
 function isAPIRequest(url) {
-  return (
-    url.pathname.startsWith('/api/') ||
-    CACHEABLE_API_PATTERNS.some(pattern => pattern.test(url.pathname))
-  );
+  return url.pathname.startsWith('/api/');
 }
 
 function isHTMLRequest(request) {
@@ -402,6 +397,7 @@ async function checkForUpdates() {
       // Fetch fresh index.html to check for build changes
       const networkResponse = await fetch('/', {
         cache: 'no-cache',
+        credentials: 'include',
         headers: { 'Cache-Control': 'no-cache' },
       });
 

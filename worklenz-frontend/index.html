@@ -25,36 +25,13 @@
     <link rel="apple-touch-icon" sizes="167x167" href="/favicon.ico" />
 
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
 
     <!-- Resource hints for better loading performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
     <link rel="dns-prefetch" href="https://js.hs-scripts.com" />
-
-    <!-- Preload critical resources -->
-    <link
-      rel="preload"
-      href="/locales/en/common.json"
-      as="fetch"
-      type="application/json"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/locales/en/auth/login.json"
-      as="fetch"
-      type="application/json"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/locales/en/navbar.json"
-      as="fetch"
-      type="application/json"
-      crossorigin
-    />
 
     <!-- Optimized font loading with font-display: swap -->
     <link

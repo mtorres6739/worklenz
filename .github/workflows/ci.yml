@@ -188,7 +188,10 @@ jobs:
           cache-dependency-path: worklenz-frontend/package-lock.json
       - run: npm ci
       - run: npm run build
-      - run: npx vitest run src/utils/html-entities.test.ts
+      - run: >-
+          npx vitest run
+          src/utils/html-entities.test.ts
+          src/utils/service-worker-security.test.ts
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=critical
 
