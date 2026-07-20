@@ -48,6 +48,12 @@ Cloudflare Access protects the hostname during the pilot. Only the exact
 applications; application authorization and SNS signature verification still apply at
 the origin.
 
+Google and Apple authentication require matching backend feature flags
+(`ENABLE_GOOGLE_LOGIN` or `ENABLE_APPLE_LOGIN`) plus the complete provider credential
+set. Keep both flags false for the email-and-password pilot. The backend does not
+construct or register disabled Passport strategies, and disabled provider routes return
+404. This prevents optional OAuth configuration from becoming a startup dependency.
+
 ## Release
 
 CI builds backend, frontend, database, and gateway images tagged with the full commit
