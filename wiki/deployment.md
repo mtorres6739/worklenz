@@ -104,6 +104,10 @@ application images: legacy template functions receive generated stable keys, and
 new data is preserved by the no-op down migration. Rehearse it twice against a restored
 production clone and once from an empty database before deployment.
 
+The follow-up `2026072000066_task-template-immutable-lock` migration stores the first-
+installation lock on the template row. Import history may be removed when a disposable
+or client project is deleted, but the installed template version remains immutable.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at

@@ -17,7 +17,8 @@ The deployed template content lives in PostgreSQL and encrypted backups.
 
 The stable template key is `sdm-website-prelaunch-v2`. Version 2 becomes immutable
 after its first project import. Future edits require a new key and version; never
-silently change an active checklist.
+silently change an active checklist. The lock is stored on the template itself, so it
+survives deletion of projects and their import-history rows.
 
 ## Install into a project
 

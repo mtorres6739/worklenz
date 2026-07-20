@@ -198,7 +198,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
   @HandleExceptions()
   public static async get(req: IWorkLenzRequest, res: IWorkLenzResponse): Promise<IWorkLenzResponse> {
     const result = await db.query(`
-      SELECT id, name, template_key, version, description, configuration, created_at, updated_at
+      SELECT id, name, template_key, version, description, configuration, locked_at, created_at, updated_at
       FROM task_templates
       WHERE team_id = $1
       ORDER BY name
@@ -209,7 +209,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
   @HandleExceptions()
   public static async getById(req: IWorkLenzRequest, res: IWorkLenzResponse): Promise<IWorkLenzResponse> {
     const template = await db.query(`
-      SELECT id, name, template_key, version, description, configuration
+      SELECT id, name, template_key, version, description, configuration, locked_at
       FROM task_templates
       WHERE id = $1 AND team_id = $2
     `, [req.params.id, req.user?.team_id]);
@@ -257,7 +257,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
     try {
       await client.query("BEGIN");
       const existing = await client.query(
-        `SELECT id FROM task_templates WHERE id = $1 AND team_id = $2 FOR UPDATE`,
+        `SELECT id, locked_at FROM task_templates WHERE id = $1 AND team_id = $2 FOR UPDATE`,
         [req.params.id, teamId],
       );
       if (!existing.rowCount) {
@@ -265,11 +265,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
         return res.status(404).send(new ServerResponse(false, null, "Template not found"));
       }
 
-      const installed = await client.query(
-        `SELECT 1 FROM task_template_imports WHERE template_id = $1 LIMIT 1`,
-        [req.params.id],
-      );
-      if (installed.rowCount) {
+      if (existing.rows[0].locked_at) {
         await client.query("ROLLBACK");
         return res.status(409).send(new ServerResponse(
           false,
@@ -320,9 +316,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
       `DELETE FROM task_templates template
        WHERE template.id = $1
          AND template.team_id = $2
-         AND NOT EXISTS (
-           SELECT 1 FROM task_template_imports imported WHERE imported.template_id = template.id
-         )
+         AND template.locked_at IS NULL
        RETURNING template.id`,
       [req.params.id, req.user?.team_id],
     );
@@ -394,6 +388,7 @@ export default class TasktemplatesController extends WorklenzControllerBase {
         SELECT id, team_id, version, configuration
         FROM task_templates
         WHERE id = $1 AND team_id = $2
+        FOR UPDATE
       `, [templateId, activeTeamId]);
       if (!template.rows[0]) {
         await client.query("ROLLBACK");
@@ -496,6 +491,12 @@ export default class TasktemplatesController extends WorklenzControllerBase {
         RETURNING id
       `, [projectId, templateId, template.rows[0].version, phaseId, launchTarget, defaultAssigneeId, userId]);
       const importId = imported.rows[0].id;
+
+      await client.query(`
+        UPDATE task_templates
+        SET locked_at = COALESCE(locked_at, NOW())
+        WHERE id = $1
+      `, [templateId]);
 
       const maxSort = await client.query(
         `SELECT COALESCE(MAX(sort_order), 0) AS value FROM tasks WHERE project_id = $1`,

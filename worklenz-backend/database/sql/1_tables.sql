@@ -1106,6 +1106,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
     version       INTEGER                  DEFAULT 1                   NOT NULL,
     description   TEXT,
     configuration JSONB                    DEFAULT '{}'::JSONB         NOT NULL,
+    locked_at     TIMESTAMP WITH TIME ZONE,
     created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
     updated_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL
 );
