@@ -66,7 +66,7 @@ jobs:
             owner_id UUID;
             team_id UUID;
             created_project_id UUID;
-            task_id UUID;
+            created_task_id UUID;
           BEGIN
             IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
               RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
@@ -128,9 +128,29 @@ jobs:
                 ORDER BY ts.sort_order
                 LIMIT 1
               )
-            )) -> 'task' ->> 'id')::UUID INTO task_id;
-            IF task_id IS NULL THEN
+            )) -> 'task' ->> 'id')::UUID INTO created_task_id;
+            IF created_task_id IS NULL THEN
               RAISE EXCEPTION 'Fresh CE task could not be created';
+            END IF;
+
+            PERFORM log_project_activity_i18n(
+              team_id, created_project_id, owner_id,
+              'activityLogs.project.created', '{}'::JSONB, 'CI Project'
+            );
+            PERFORM log_task_activity_i18n(
+              created_task_id, team_id, created_project_id, owner_id,
+              'task', 'create', 'activityLogs.task.created', '{}'::JSONB, NULL, NULL
+            );
+            IF NOT EXISTS (
+              SELECT 1 FROM project_logs
+              WHERE project_id = created_project_id
+                AND i18n_key = 'activityLogs.project.created'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM task_activity_logs tal
+              WHERE tal.task_id = created_task_id
+                AND tal.i18n_key = 'activityLogs.task.created'
+            ) THEN
+              RAISE EXCEPTION 'Fresh CE i18n activity logging failed';
             END IF;
           END
           $$;

@@ -427,11 +427,16 @@ ALTER TABLE project_folders
         FOREIGN KEY (parent_folder_id) REFERENCES project_folders;
 
 CREATE TABLE IF NOT EXISTS project_logs (
-    id          UUID                     DEFAULT uuid_generate_v4() NOT NULL,
-    team_id     UUID                                                NOT NULL,
-    project_id  UUID                                                NOT NULL,
-    description TEXT                                                NOT NULL,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL
+    id           UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    team_id      UUID                                                NOT NULL,
+    project_id   UUID                                                NOT NULL,
+    description  TEXT                                                NOT NULL,
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
+    i18n_key     TEXT,
+    i18n_params  JSONB,
+    user_id      UUID,
+    user_name    TEXT,
+    project_name TEXT
 );
 
 ALTER TABLE project_logs
@@ -889,7 +894,9 @@ CREATE TABLE IF NOT EXISTS task_activity_logs (
     prev_string    TEXT,
     next_string    TEXT,
     created_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  NOT NULL,
-    project_id     UUID                                                NOT NULL
+    project_id     UUID                                                NOT NULL,
+    i18n_key       TEXT,
+    i18n_params    JSONB
 );
 
 COMMENT ON COLUMN task_activity_logs.user_id IS 'id of the user who initiated the activity';
@@ -1430,6 +1437,11 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
     ADD CONSTRAINT users_pk
         PRIMARY KEY (id);
+
+ALTER TABLE project_logs
+    ADD CONSTRAINT project_logs_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id)
+            ON DELETE SET NULL;
 
 ALTER TABLE archived_projects
     ADD CONSTRAINT archived_projects_user_id_fk

@@ -73,8 +73,10 @@ project_read="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
   "$base_url/api/v1/projects/$project_id")"
 assert_done "Project read" "$project_read"
 
-task_payload="$(jq -nc --arg project "$project_id" \
-  '{name:"Verify production task CRUD",project_id:$project,assignees:[],labels:[],total_hours:0,total_minutes:0,description:"Launch smoke test"}')"
+task_status_id="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
+  "$base_url/api/v1/statuses?project=$project_id" | jq -er '.body[0].id')"
+task_payload="$(jq -nc --arg project "$project_id" --arg status "$task_status_id" \
+  '{name:"Verify production task CRUD",project_id:$project,status_id:$status,assignees:[],labels:[],total_hours:0,total_minutes:0,description:"Launch smoke test"}')"
 token="$(csrf_token)"
 task_json="$(curl -skS -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$task_payload" \
@@ -93,7 +95,7 @@ assert_done "Task deletion" "$task_delete"
 task_id=""
 
 update_payload="$(jq -nc --arg status "$status_id" \
-  '{name:"Production Smoke Test Updated",color_code:"#1677ff",status_id:$status}')"
+  '{name:"Production Smoke Test Updated",key:"PSM",color_code:"#1677ff",status_id:$status}')"
 token="$(csrf_token)"
 update_json="$(curl -skS -X PUT -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$update_payload" \
