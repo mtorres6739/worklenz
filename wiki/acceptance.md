@@ -40,6 +40,20 @@ Passed before opening the internal pilot:
 - Public signup denial, disabled Google and Apple routes, production cookie attributes,
   signed SES webhook confirmation, encrypted backup freshness, isolated PostgreSQL and
   object-storage restore, and host reboot recovery.
+- Authenticated owner login/session verification and CSRF-protected project and task
+  create, read, update, and delete checks against production.
+- Schema-compatible rollback from
+  `0eed2c4af3fc98da5345c1194d4d87a75e489a29` to
+  `7ae62f9d45aaea10bc806fbbe365ba2f6a9cf585`, including a full authenticated
+  functional smoke test, followed by a successful redeploy of the current release.
+- A new encrypted daily backup, backup-age check, and isolated PostgreSQL plus private
+  object-storage restore drill after the final production deployment.
+
+Production release evidence:
+
+- Deployed SHA: `0eed2c4af3fc98da5345c1194d4d87a75e489a29`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/29763713968>.
+- Immutable release: <https://github.com/mtorres6739/worklenz/actions/runs/29763713983>.
 
 Still gated after the internal launch:
 
