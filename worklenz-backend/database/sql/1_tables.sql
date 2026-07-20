@@ -1195,6 +1195,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     task_no             BIGINT                                              NOT NULL,
     start_date          TIMESTAMP WITH TIME ZONE,
     end_date            TIMESTAMP WITH TIME ZONE,
+    due_time            TIME,
     priority_id         UUID                                                NOT NULL,
     project_id          UUID                                                NOT NULL,
     reporter_id         UUID                                                NOT NULL,

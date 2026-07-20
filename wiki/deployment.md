@@ -69,7 +69,8 @@ The CE base schema removes paid-licensing tables but leaves session functions th
 reference them. The fork-owned `2026072000015_ce_licensing_compatibility` migration
 adds empty CE compatibility tables plus the self-hosted organization override columns.
 Fresh-install CI registers and deserializes a real owner inside a rolled-back
-transaction, preventing a release where login succeeds but session verification fails.
+transaction, then creates a project and task. This prevents a release where login
+succeeds but core runtime functions reference columns absent from the CE base schema.
 
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
