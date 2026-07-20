@@ -38,6 +38,16 @@ logs, or command output.
 7. Install the systemd backup and freshness-monitor units from
    `infra/production/systemd/` and enable both timers.
 
+Ubuntu 24.04 does not provide the `awscli` package in the selected Hetzner image.
+The cloud-init baseline installs checksum-pinned AWS CLI v2 instead. The backend
+production image must retain `node-pg-migrate`; the release workflow runs an image-level
+check before publishing a deployable migration artifact.
+
+Cloudflare Access protects the hostname during the pilot. Only the exact
+`/public/health` and signed `/webhook/emails/events` paths use separate bypass
+applications; application authorization and SNS signature verification still apply at
+the origin.
+
 ## Release
 
 CI builds backend, frontend, database, and gateway images tagged with the full commit

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'printf "Hetzner provisioning failed near line %s.\n" "$LINENO" >&2' ERR
 
 : "${HETZNER_API_TOKEN:?Load HETZNER_API_TOKEN from the secret environment}"
 : "${ADMIN_SSH_CIDRS:?Set comma-separated administration CIDRs, including /32 or /128}"
@@ -38,6 +39,12 @@ if [[ -z "$firewall_id" ]]; then
   firewall_id="$(curl -fsS -X POST "${auth[@]}" "${api}/firewalls" \
     -d "$(jq -n --arg name "$firewall_name" --argjson rules "$rules" '{name:$name,rules:$rules}')" | jq -r '.firewall.id')"
 fi
+
+# Keep an existing firewall synchronized with the current Cloudflare ranges and
+# administration CIDRs before attaching it to a new server.
+curl -fsS -X POST "${auth[@]}" "${api}/firewalls/${firewall_id}/actions/set_rules" \
+  -d "$(jq -n --argjson rules "$rules" '{rules:$rules}')" \
+  | jq -e '.actions | length > 0 and all(.[]; .status == "running" or .status == "success")' >/dev/null
 
 ssh_keys="$(curl -fsS "${auth[@]}" "${api}/ssh_keys" | jq '[.ssh_keys[].id]')"
 user_data="$(cat "$(dirname "$0")/cloud-init.yml")"

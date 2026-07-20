@@ -67,6 +67,29 @@ else
     -d "$policy_payload" | jq -e '.success' >/dev/null
 fi
 
+health_domain="${hostname}/public/health"
+health_app_id="$(curl -fsS "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+  | jq -r --arg domain "$health_domain" '.result[] | select(.domain == $domain) | .id' | head -n1)"
+if [[ -z "$health_app_id" ]]; then
+  health_app_id="$(curl -fsS -X POST "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+    -d "$(jq -n --arg domain "$health_domain" '{name:"Worklenz health check",domain:$domain,type:"self_hosted",session_duration:"24h"}')" \
+    | jq -r '.result.id')"
+fi
+
+health_policy_id="$(curl -fsS "${headers[@]}" \
+  "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${health_app_id}/policies" \
+  | jq -r '.result[] | select(.name == "Health bypass") | .id' | head -n1)"
+health_policy_payload='{"name":"Health bypass","decision":"bypass","precedence":1,"include":[{"everyone":{}}],"exclude":[],"require":[]}'
+if [[ -n "$health_policy_id" ]]; then
+  curl -fsS -X PUT "${headers[@]}" \
+    "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${health_app_id}/policies/${health_policy_id}" \
+    -d "$health_policy_payload" | jq -e '.success' >/dev/null
+else
+  curl -fsS -X POST "${headers[@]}" \
+    "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${health_app_id}/policies" \
+    -d "$health_policy_payload" | jq -e '.success' >/dev/null
+fi
+
 webhook_domain="${hostname}/webhook/emails/events"
 webhook_app_id="$(curl -fsS "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
   | jq -r --arg domain "$webhook_domain" '.result[] | select(.domain == $domain) | .id' | head -n1)"
@@ -90,4 +113,4 @@ else
     -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
 fi
 
-echo "Cloudflare DNS, Full Strict TLS settings, internal Access, and the signed-webhook bypass are configured."
+echo "Cloudflare DNS, Full Strict TLS settings, internal Access, and exact health/webhook bypasses are configured."

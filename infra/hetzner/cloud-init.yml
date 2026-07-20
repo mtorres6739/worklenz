@@ -3,14 +3,15 @@ package_update: true
 package_upgrade: true
 packages:
   - age
-  - awscli
   - ca-certificates
   - curl
   - docker-compose-v2
   - docker.io
   - fail2ban
   - jq
+  - postgresql-client
   - unattended-upgrades
+  - unzip
 
 ssh_pwauth: false
 disable_root: false
@@ -34,6 +35,10 @@ write_files:
       bantime = 1h
 
 runcmd:
+  - curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.36.2.zip -o /tmp/worklenz-awscliv2.zip
+  - echo "88045926e48315681b73ec1d4e430ae6917b0eaffc6368d34bcc07bf9fe9fcb9  /tmp/worklenz-awscliv2.zip" | sha256sum -c -
+  - unzip -q -o /tmp/worklenz-awscliv2.zip -d /tmp/worklenz-awscliv2
+  - /tmp/worklenz-awscliv2/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli
   - systemctl enable --now docker
   - systemctl enable --now fail2ban
   - install -d -m 0700 /srv/worklenz /srv/worklenz/tls /srv/worklenz/scripts
