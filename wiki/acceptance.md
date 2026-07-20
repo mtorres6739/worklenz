@@ -49,6 +49,9 @@ Passed before opening the internal pilot:
   progress and team reporting fields omitted by the upstream CE base schema. Release
   `2026072000055_application_schema_compatibility` adds those fields, and CI now checks
   them against real task and owner fixtures before release.
+- Live admin-center and task creation checks subsequently exposed omitted organization
+  calculation fields and an upstream leaf-task division-by-zero function. Migration
+  `2026072000060_runtime_schema_compatibility` and fresh-install assertions cover both.
 - Schema-compatible rollback from
   `0eed2c4af3fc98da5345c1194d4d87a75e489a29` to
   `7ae62f9d45aaea10bc806fbbe365ba2f6a9cf585`, including a full authenticated

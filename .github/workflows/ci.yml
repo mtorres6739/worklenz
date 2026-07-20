@@ -116,6 +116,14 @@ jobs:
             FROM team_members tm
             WHERE tm.user_id = owner_id;
 
+            PERFORM o.calculation_method, o.hours_per_day, o.logo_url
+            FROM organizations o
+            WHERE o.user_id = owner_id;
+
+            IF COALESCE((get_task_complete_ratio(created_task_id) ->> 'ratio')::FLOAT, -1) <> 0 THEN
+              RAISE EXCEPTION 'Fresh CE leaf-task progress ratio is invalid';
+            END IF;
+
             IF is_task_creation_restricted(owner_id, created_project_id) THEN
               RAISE EXCEPTION 'Fresh CE owner was incorrectly blocked from task creation';
             END IF;

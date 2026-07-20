@@ -89,6 +89,12 @@ columns plus `team_members.reports_to_member_id` defensively. Fresh-install CI s
 these fields from real task and owner fixtures so a release cannot pass while project
 views would fail with `undefined_column` errors.
 
+The fork-owned `2026072000060_runtime_schema_compatibility` migration adds the
+organization calculation and logo fields used by the admin-center controller. It also
+replaces the upstream leaf-task progress function, which divided by zero when a task
+had no subtasks, with the reviewed manual-progress-aware implementation. Fresh-install
+CI selects the organization fields and calculates progress for a real leaf task.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
