@@ -3,6 +3,7 @@ name: worklenz
 services:
   postgres:
     image: ${DATABASE_IMAGE:?DATABASE_IMAGE must be an immutable GHCR SHA tag}
+    user: postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME}

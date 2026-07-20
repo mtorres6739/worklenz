@@ -13,19 +13,7 @@ export default class AwsSesController extends WorklenzControllerBase {
   @HandleExceptions()
   public static async handleBounceResponse(req: IWorkLenzRequest, res: IWorkLenzResponse): Promise<IWorkLenzResponse> {
     const message = JSON.parse(req.body.Message) as ISESBouncedMessage;
-
-    if (message.notificationType === "Bounce" && message.bounce.bounceType === "Permanent") {
-      const bouncedEmails = Array.from(new Set(message.bounce.bouncedRecipients.map(r => r.emailAddress)));
-
-      for (const email of bouncedEmails) {
-        const q = `
-          INSERT INTO bounced_emails (email)
-          VALUES ($1)
-          ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
-        `;
-        await db.query(q, [email]);
-      }
-    }
+    await this.processBounce(message);
 
     return res.status(200).send(new ServerResponse(true, null));
   }
@@ -33,19 +21,7 @@ export default class AwsSesController extends WorklenzControllerBase {
   @HandleExceptions()
   public static async handleComplaintResponse(req: IWorkLenzRequest, res: IWorkLenzResponse): Promise<IWorkLenzResponse> {
     const message = JSON.parse(req.body.Message) as ISESComplaintMessage;
-
-    if (message.notificationType === "Complaint") {
-      const spamEmails = Array.from(new Set(message.complaint.complainedRecipients.map(r => r.emailAddress)));
-
-      for (const email of spamEmails) {
-        const q = `
-          INSERT INTO spam_emails (email)
-          VALUES ($1)
-          ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
-        `;
-        await db.query(q, [email]);
-      }
-    }
+    await this.processComplaint(message);
 
     return res.status(200).send(new ServerResponse(true, null));
   }
@@ -96,12 +72,36 @@ export default class AwsSesController extends WorklenzControllerBase {
         break;
 
       case 'Bounce':
-        // Handled by existing handleBounceResponse method
+        await this.processBounce(message as ISESBouncedMessage);
         break;
 
       case 'Complaint':
-        // Handled by existing handleComplaintResponse method
+        await this.processComplaint(message as ISESComplaintMessage);
         break;
+    }
+  }
+
+  private static async processBounce(message: ISESBouncedMessage): Promise<void> {
+    if (message.notificationType !== "Bounce" || message.bounce.bounceType !== "Permanent") return;
+    const emails = Array.from(new Set(message.bounce.bouncedRecipients.map(r => r.emailAddress)));
+    for (const email of emails) {
+      await db.query(`
+        INSERT INTO bounced_emails (email)
+        VALUES ($1)
+        ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
+      `, [email]);
+    }
+  }
+
+  private static async processComplaint(message: ISESComplaintMessage): Promise<void> {
+    if (message.notificationType !== "Complaint") return;
+    const emails = Array.from(new Set(message.complaint.complainedRecipients.map(r => r.emailAddress)));
+    for (const email of emails) {
+      await db.query(`
+        INSERT INTO spam_emails (email)
+        VALUES ($1)
+        ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
+      `, [email]);
     }
   }
 

@@ -14,10 +14,15 @@ if curl -fsS "${auth[@]}" "${api}/servers?name=${server_name}" | jq -e '.servers
   exit 0
 fi
 
-mapfile -t cf_sources < <(
-  { curl -fsS https://www.cloudflare.com/ips-v4; curl -fsS https://www.cloudflare.com/ips-v6; } | jq -R .
-)
-mapfile -t ssh_sources < <(tr ',' '\n' <<<"$ADMIN_SSH_CIDRS" | sed '/^$/d' | jq -R .)
+cf_sources=()
+while IFS= read -r source_ip; do
+  cf_sources+=("$(jq -Rn --arg value "$source_ip" '$value')")
+done < <({ curl -fsS https://www.cloudflare.com/ips-v4; echo; curl -fsS https://www.cloudflare.com/ips-v6; echo; })
+
+ssh_sources=()
+while IFS= read -r source_ip; do
+  ssh_sources+=("$(jq -Rn --arg value "$source_ip" '$value')")
+done < <(tr ',' '\n' <<<"$ADMIN_SSH_CIDRS" | sed '/^$/d')
 
 cf_json="$(printf '%s\n' "${cf_sources[@]}" | jq -s .)"
 ssh_json="$(printf '%s\n' "${ssh_sources[@]}" | jq -s .)"

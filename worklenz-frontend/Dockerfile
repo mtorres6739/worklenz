@@ -13,6 +13,7 @@ ENV SENTRY_UPLOAD_SOURCEMAPS=false
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 FROM nginx:1.27-alpine AS production
+RUN apk upgrade --no-cache
 COPY docker/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
 COPY --from=build /app/build /usr/share/nginx/html

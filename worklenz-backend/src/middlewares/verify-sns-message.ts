@@ -17,18 +17,37 @@ export default function verifySnsMessage(
     return res.status(403).json({ done: false, message: "Invalid SNS topic." });
   }
 
-  if (req.body?.Type !== "Notification") {
-    return res.status(400).json({
-      done: false,
-      message: "Only confirmed SNS notification deliveries are accepted.",
-    });
-  }
-
-  validator.validate(req.body, (error) => {
+  validator.validate(req.body, async (error) => {
     if (error) {
       return res
         .status(403)
         .json({ done: false, message: "Invalid SNS signature." });
+    }
+
+    if (req.body?.Type === "SubscriptionConfirmation") {
+      try {
+        const confirmationUrl = new URL(req.body.SubscribeURL);
+        const region = process.env.SES_REGION;
+        if (
+          !region ||
+          confirmationUrl.protocol !== "https:" ||
+          confirmationUrl.hostname !== `sns.${region}.amazonaws.com` ||
+          confirmationUrl.searchParams.get("Action") !== "ConfirmSubscription"
+        ) {
+          return res.status(403).json({ done: false, message: "Invalid SNS confirmation URL." });
+        }
+        const confirmation = await fetch(confirmationUrl);
+        return confirmation.ok ? res.status(200).end() : res.status(502).end();
+      } catch {
+        return res.status(400).json({ done: false, message: "Invalid SNS confirmation request." });
+      }
+    }
+
+    if (req.body?.Type !== "Notification") {
+      return res.status(400).json({
+        done: false,
+        message: "Unsupported SNS message type.",
+      });
     }
     return next();
   });

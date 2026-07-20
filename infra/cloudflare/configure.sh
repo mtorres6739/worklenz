@@ -9,6 +9,14 @@ set -euo pipefail
 
 api="https://api.cloudflare.com/client/v4"
 headers=(-H "Authorization: Bearer ${CF_API_TOKEN}" -H "Content-Type: application/json")
+if [[ -n "${CF_ZONE_SETTINGS_API_TOKEN:-}" ]]; then
+  settings_headers=(-H "Authorization: Bearer ${CF_ZONE_SETTINGS_API_TOKEN}" -H "Content-Type: application/json")
+elif [[ -n "${CF_GLOBAL_API_KEY:-}" && -n "${CF_AUTH_EMAIL:-}" ]]; then
+  settings_headers=(-H "X-Auth-Email: ${CF_AUTH_EMAIL}" -H "X-Auth-Key: ${CF_GLOBAL_API_KEY}" -H "Content-Type: application/json")
+else
+  echo "Set CF_ZONE_SETTINGS_API_TOKEN, or explicitly load CF_GLOBAL_API_KEY and CF_AUTH_EMAIL for the one-time settings update." >&2
+  exit 1
+fi
 hostname="projects.myfusionadmin.com"
 
 record_id="$(curl -fsS "${headers[@]}" \
@@ -31,7 +39,7 @@ for setting in \
   'websockets:{"value":"on"}'; do
   id="${setting%%:*}"
   payload="${setting#*:}"
-  curl -fsS -X PATCH "${headers[@]}" "${api}/zones/${CF_ZONE_ID}/settings/${id}" \
+  curl -fsS -X PATCH "${settings_headers[@]}" "${api}/zones/${CF_ZONE_ID}/settings/${id}" \
     -d "$payload" | jq -e '.success' >/dev/null
 done
 
@@ -59,4 +67,27 @@ else
     -d "$policy_payload" | jq -e '.success' >/dev/null
 fi
 
-echo "Cloudflare DNS, Full Strict TLS settings, and internal Access policy are configured."
+webhook_domain="${hostname}/webhook/emails/events"
+webhook_app_id="$(curl -fsS "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+  | jq -r --arg domain "$webhook_domain" '.result[] | select(.domain == $domain) | .id' | head -n1)"
+if [[ -z "$webhook_app_id" ]]; then
+  webhook_app_id="$(curl -fsS -X POST "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+    -d "$(jq -n --arg domain "$webhook_domain" '{name:"Worklenz signed SES webhook",domain:$domain,type:"self_hosted",session_duration:"24h"}')" \
+    | jq -r '.result.id')"
+fi
+
+webhook_policy_id="$(curl -fsS "${headers[@]}" \
+  "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies" \
+  | jq -r '.result[] | select(.name == "Signed SNS bypass") | .id' | head -n1)"
+webhook_policy_payload='{"name":"Signed SNS bypass","decision":"bypass","precedence":1,"include":[{"everyone":{}}],"exclude":[],"require":[]}'
+if [[ -n "$webhook_policy_id" ]]; then
+  curl -fsS -X PUT "${headers[@]}" \
+    "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies/${webhook_policy_id}" \
+    -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
+else
+  curl -fsS -X POST "${headers[@]}" \
+    "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies" \
+    -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
+fi
+
+echo "Cloudflare DNS, Full Strict TLS settings, internal Access, and the signed-webhook bypass are configured."

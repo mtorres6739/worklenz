@@ -398,6 +398,11 @@ app.get("/csrf-token", (req: Request, res: Response) => {
 
 // Webhook endpoints (no CSRF required)
 app.post(
+  "/webhook/emails/events",
+  verifySnsMessage,
+  safeControllerFunction(AwsSesController.handleDeliveryEvents),
+);
+app.post(
   "/webhook/emails/bounce",
   verifySnsMessage,
   safeControllerFunction(AwsSesController.handleBounceResponse),
