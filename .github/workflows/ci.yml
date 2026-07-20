@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: worklenz
+          POSTGRES_USER: worklenz
+          POSTGRES_PASSWORD: test-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U worklenz -d worklenz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: worklenz-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: worklenz-backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck:ce
+      - run: npm test -- --runInBand
+      - name: Fresh CE database and fork migrations
+        env:
+          POSTGRES_USER: worklenz
+          POSTGRES_DB: worklenz
+          PGPASSWORD: test-only-password
+          PGHOST: 127.0.0.1
+          DB_USER: worklenz
+          DB_PASSWORD: test-only-password
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_NAME: worklenz
+          WORKLENZ_INITDB_ROOT: ${{ github.workspace }}/worklenz-backend/database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          bash database/00_init.sh
+          node scripts/migrate.js up
+      - name: Production dependency gate
+        run: npm audit --omit=dev --audit-level=critical
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: worklenz-frontend
+    env:
+      VITE_EDITION: ce
+      VITE_ALLOW_SIGNUPS: "false"
+      SENTRY_UPLOAD_SOURCEMAPS: "false"
+      VITE_SENTRY_AUTH_TOKEN: ""
+      VITE_SENTRY_ORG: ""
+      VITE_SENTRY_PROJECT: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: worklenz-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run src/utils/html-entities.test.ts
+      - name: Production dependency gate
+        run: npm audit --omit=dev --audit-level=critical
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Filesystem vulnerability scan
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL
+          exit-code: "1"

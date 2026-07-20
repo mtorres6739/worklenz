@@ -11,6 +11,8 @@ import safeControllerFunction from "../../shared/safe-controller-function";
 import FileConstants from "../../shared/file-constants";
 import { log_error } from "../../shared/utils";
 import { resetPasswordLimiter, updatePasswordLimiter } from "../../middlewares/reset-password-rate-limiter";
+import { loginLimiter, signupLimiter } from "../../middlewares/auth-rate-limiters";
+import signupPolicy from "../../middlewares/signup-policy";
 
 const authRouter = express.Router();
 
@@ -20,9 +22,9 @@ const options = (key: string): passport.AuthenticateOptions => ({
   successRedirect: `/secure/verify?strategy=${key}`
 });
 
-authRouter.post("/login", passport.authenticate("local-login", options("login")));
-authRouter.post("/signup", signUpValidator, passwordValidator, passport.authenticate("local-signup", options("signup")));
-authRouter.post("/signup/check", signUpValidator, passwordValidator, safeControllerFunction(AuthController.status_check));
+authRouter.post("/login", loginLimiter, passport.authenticate("local-login", options("login")));
+authRouter.post("/signup", signupLimiter, signupPolicy, signUpValidator, passwordValidator, passport.authenticate("local-signup", options("signup")));
+authRouter.post("/signup/check", signupLimiter, signupPolicy, signUpValidator, passwordValidator, safeControllerFunction(AuthController.status_check));
 authRouter.get("/verify", AuthController.verify);
 authRouter.get("/check-password", safeControllerFunction(AuthController.checkPasswordStrength));
 

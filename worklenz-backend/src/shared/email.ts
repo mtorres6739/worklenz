@@ -5,7 +5,18 @@ import { log_error, isValidateEmail } from "./utils";
 import emailRequestSchema from "../json_schemas/email-request-schema";
 import db from "../config/db";
 
-const sesClient = new SESClient({ region: process.env.AWS_REGION });
+const sesCredentials =
+  process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY
+    ? {
+        accessKeyId: process.env.SES_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SES_SECRET_ACCESS_KEY,
+      }
+    : undefined;
+
+const sesClient = new SESClient({
+  region: process.env.SES_REGION || process.env.AWS_REGION,
+  credentials: sesCredentials,
+});
 
 export interface IEmail {
   to?: string[];
@@ -220,9 +231,7 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
     let messageId: string | undefined;
 
     // Send via AWS SES
-    console.log("\n📧 Sending email via AWS SES...");
-    console.log("To:", options.to.join(", "));
-    console.log("Subject:", options.subject);
+    console.log(`Sending email via SES to ${options.to.length} recipient(s).`);
 
     const charset = "UTF-8";
     
@@ -254,13 +263,12 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
           },
         },
       },
-      Source: "Worklenz <noreply@worklenz.com>",
+      Source: process.env.EMAIL_FROM || "Worklenz <noreply@localhost>",
     });
 
     const res = await sesClient.send(command);
     messageId = res.MessageId;
-    console.log("✅ Email sent successfully!");
-    console.log("Message ID:", messageId);
+    console.log("Email accepted by SES.");
 
     // Update log status to sent
     // Append index to messageId to make it unique per recipient when sending to multiple

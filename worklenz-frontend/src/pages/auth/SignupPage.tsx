@@ -83,6 +83,20 @@ const SignupPage = () => {
   useEffect(() => {
     trackMixpanelEvent(evt_signup_page_visit);
     const searchParams = new URLSearchParams(window.location.search);
+    const invitation = {
+      teamId: searchParams.get('team') || '',
+      teamMemberId: searchParams.get('user') || '',
+    };
+
+    if (
+      import.meta.env.VITE_ALLOW_SIGNUPS !== 'true' &&
+      !(invitation.teamId && invitation.teamMemberId)
+    ) {
+      message.info('Public signup is disabled. Ask an administrator for an invitation.');
+      navigate('/auth/login', { replace: true });
+      return;
+    }
+
     setUrlParams({
       email: searchParams.get('email') || '',
       name: searchParams.get('name') || '',
@@ -218,10 +232,13 @@ const SignupPage = () => {
         }
       }
 
-      const body = {
+      const body: IUserSignUpRequest = {
         name: values.name,
         email: values.email.toLowerCase().trim(),
         password: values.password,
+        team_id: urlParams.teamId || undefined,
+        team_member_id: urlParams.teamMemberId || undefined,
+        project_id: urlParams.projectId || undefined,
       };
 
       const res = await authApiService.signUpCheck(body);

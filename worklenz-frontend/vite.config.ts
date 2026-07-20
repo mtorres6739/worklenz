@@ -9,6 +9,10 @@ export default defineConfig(({ command, mode }) => {
   const buildTimestamp = Date.now().toString();
 
   const env = loadEnv(mode, process.cwd(), '');
+  const uploadSourcemaps =
+    isProduction &&
+    env.SENTRY_UPLOAD_SOURCEMAPS === 'true' &&
+    Boolean(env.VITE_SENTRY_ORG && env.VITE_SENTRY_PROJECT && env.VITE_SENTRY_AUTH_TOKEN);
 
   // Open-core edition seam: `ee` resolves business features to their real implementations,
   // `ce` (default, open-source build) resolves them to stubs. Set via VITE_EDITION.
@@ -21,7 +25,7 @@ export default defineConfig(({ command, mode }) => {
       react(),
       // Sentry plugin for source maps upload in production
       // sentryVitePlugin returns an array of plugins, so we spread it
-      ...(isProduction
+      ...(uploadSourcemaps
         ? sentryVitePlugin({
             org: env.VITE_SENTRY_ORG,
             project: env.VITE_SENTRY_PROJECT,
@@ -162,7 +166,7 @@ export default defineConfig(({ command, mode }) => {
       // **Sourcemaps**
       // Generate sourcemaps in production for Sentry (they'll be uploaded, not included in bundle)
       // Use 'hidden' so sourcemaps are generated but not referenced in the bundle
-      sourcemap: !isProduction ? 'inline' : 'hidden',
+      sourcemap: !isProduction ? 'inline' : uploadSourcemaps ? 'hidden' : false,
 
       // **Module Preload Polyfill** - Helps with chunk loading reliability
       modulePreload: {

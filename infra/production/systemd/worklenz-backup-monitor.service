@@ -1,0 +1,9 @@
+[Unit]
+Description=Verify Worklenz backup freshness
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/worklenz
+ExecStart=/srv/worklenz/scripts/check-backup-age.sh
+User=root

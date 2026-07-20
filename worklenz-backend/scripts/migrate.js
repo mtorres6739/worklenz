@@ -19,7 +19,8 @@ if (!DB_USER || !DB_NAME) {
 const databaseUrl = `postgresql://${DB_USER}:${encodeURIComponent(DB_PASSWORD || '')}@${DB_HOST || 'localhost'}:${DB_PORT}/${DB_NAME}`;
 
 const bin = path.join(__dirname, '..', 'node_modules', '.bin', 'node-pg-migrate');
-const migrationsDir = path.join(__dirname, '..', 'database', 'pg-migrations');
+const migrationsDir = process.env.WORKLENZ_MIGRATIONS_DIR ||
+  path.join(__dirname, '..', 'database', 'production-migrations');
 
 execFileSync(bin, ['--migrations-dir', migrationsDir, ...process.argv.slice(2)], {
   stdio: 'inherit',

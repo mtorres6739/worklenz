@@ -30,21 +30,20 @@ import {
   BUCKET,
   REGION,
   S3_ACCESS_KEY_ID,
+  S3_ENDPOINT,
+  S3_FORCE_PATH_STYLE,
   S3_SECRET_ACCESS_KEY,
-  S3_URL,
   STORAGE_PROVIDER,
 } from "./constants";
 
-// Parse the endpoint URL from S3_URL if it exists
 const getEndpointFromUrl = () => {
   try {
-    if (!S3_URL) return undefined;
+    if (!S3_ENDPOINT) return undefined;
 
-    // Extract the endpoint URL (e.g., http://minio:9000 from http://minio:9000/bucket)
-    const url = new URL(S3_URL);
+    const url = new URL(S3_ENDPOINT);
     return `${url.protocol}//${url.host}`;
   } catch (error) {
-    console.warn("Error parsing S3_URL:", error);
+    console.warn("Error parsing S3_ENDPOINT:", error);
     return undefined;
   }
 };
@@ -57,7 +56,7 @@ const s3Client = new S3Client({
     secretAccessKey: S3_SECRET_ACCESS_KEY || "",
   },
   endpoint: getEndpointFromUrl(),
-  forcePathStyle: true, // Required for MinIO
+  forcePathStyle: S3_FORCE_PATH_STYLE,
 });
 
 // Log the storage configuration
@@ -301,21 +300,12 @@ async function uploadBufferToS3(
       Bucket: BUCKET,
       Key: location,
       Body: buffer,
-      ContentEncoding: "base64",
       ContentType: type,
     };
 
     await s3Client.send(new PutObjectCommand(bucketParams));
 
-    // Create proper URL depending on whether we're using S3 or MinIO
-    const endpointUrl = getEndpointFromUrl();
-    if (endpointUrl) {
-      // For MinIO or custom S3 endpoint
-      return `${endpointUrl}/${BUCKET}/${location}`;
-    }
-
-    // For standard AWS S3
-    return `${S3_URL}/${location}`;
+    return location;
   } catch (error) {
     log_error(error);
     return null;
@@ -340,9 +330,7 @@ async function uploadBufferToAzure(
       },
     });
 
-    // Format URL with container name in the path
-    const containerName = AZURE_STORAGE_CONTAINER || "ifinitycdn";
-    return `${AZURE_STORAGE_URL}/${containerName}/${location}`;
+    return location;
   } catch (error) {
     log_error(error);
     return null;
@@ -581,4 +569,49 @@ export async function createPresignedUrlWithClient(key: string, file: string) {
     return createPresignedUrlWithAzureClient(key, file);
   }
   return createPresignedUrlWithS3Client(key, file);
+}
+
+export async function createPresignedViewUrl(
+  key: string,
+  file: string,
+  expiresIn = 900,
+) {
+  if (STORAGE_PROVIDER === "azure") {
+    if (
+      !AZURE_STORAGE_ACCOUNT_NAME ||
+      !AZURE_STORAGE_ACCOUNT_KEY ||
+      !AZURE_STORAGE_URL
+    ) {
+      throw new Error("Azure Blob Storage not configured properly");
+    }
+
+    const containerName = AZURE_STORAGE_CONTAINER || "ifinitycdn";
+    const contentType = mimeTypes.lookup(path.extname(file).toLowerCase());
+    const sasToken = generateBlobSASQueryParameters(
+      {
+        containerName,
+        blobName: key,
+        permissions: BlobSASPermissions.parse("r"),
+        startsOn: new Date(),
+        expiresOn: new Date(Date.now() + expiresIn * 1000),
+        contentType: contentType || undefined,
+      },
+      new StorageSharedKeyCredential(
+        AZURE_STORAGE_ACCOUNT_NAME,
+        AZURE_STORAGE_ACCOUNT_KEY,
+      ),
+    ).toString();
+    return `${AZURE_STORAGE_URL}/${containerName}/${key}?${sasToken}`;
+  }
+
+  const contentType = mimeTypes.lookup(path.extname(file).toLowerCase());
+  return getSignedUrl(
+    s3Client,
+    new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      ResponseContentType: contentType || undefined,
+    }),
+    { expiresIn },
+  );
 }

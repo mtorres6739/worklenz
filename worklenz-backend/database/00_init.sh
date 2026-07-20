@@ -3,9 +3,9 @@ set -e
 
 echo "Starting database initialization..."
 
-SQL_DIR="/docker-entrypoint-initdb.d/sql"
-MIGRATIONS_DIR="/docker-entrypoint-initdb.d/migrations"
-BACKUP_DIR="/docker-entrypoint-initdb.d/pg_backups"
+INITDB_ROOT="${WORKLENZ_INITDB_ROOT:-/docker-entrypoint-initdb.d}"
+SQL_DIR="$INITDB_ROOT/sql"
+BACKUP_DIR="$INITDB_ROOT/pg_backups"
 
 # --------------------------------------------
 # 🗄️ STEP 1: Attempt to restore latest backup
@@ -48,7 +48,6 @@ BASE_SQL_FILES=(
   "triggers.sql"
   "3_views.sql"
   "2_dml.sql"
-  "5_database_user.sql"
 )
 
 echo "Running base schema SQL files in order..."
@@ -65,24 +64,4 @@ done
 
 echo "✅ Base schema SQL execution complete."
 
-# --------------------------------------------
-# 🚀 STEP 3: Apply SQL migrations
-# --------------------------------------------
-
-if [ -d "$MIGRATIONS_DIR" ] && compgen -G "$MIGRATIONS_DIR/*.sql" > /dev/null; then
-  echo "Applying migrations..."
-  for f in "$MIGRATIONS_DIR"/*.sql; do
-    version=$(basename "$f")
-    if ! psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT 1 FROM schema_migrations WHERE version = '$version'" | grep -q 1; then
-      echo "Applying migration: $version"
-      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$f"
-      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "INSERT INTO schema_migrations (version) VALUES ('$version');"
-    else
-      echo "Skipping already applied migration: $version"
-    fi
-  done
-else
-  echo "No migration files found or directory is empty, skipping migrations."
-fi
-
-echo "🎉 Database initialization completed successfully."
+echo "Database initialization completed successfully. Fork-owned upgrades are applied separately."

@@ -8,11 +8,11 @@ import HandleExceptions from "../decorators/handle-exceptions";
 import WorklenzControllerBase from "./worklenz-controller-base";
 import {
   createPresignedUrlWithClient,
+  createPresignedViewUrl,
   deleteObject,
   getProjectFileStorageKey,
   uploadBuffer,
 } from "../shared/storage";
-import { getStorageUrl } from "../shared/constants";
 import { log_error } from "../shared/utils";
 
 const ALLOWED_SORT_FIELDS: Record<string, string> = {
@@ -119,7 +119,7 @@ export default class ProjectFilesController extends WorklenzControllerBase {
         new ServerResponse(true, {
           ...data,
           uploaded_by: uploadedBy,
-          url: uploadUrl || `${getStorageUrl()}/${storageKey}`,
+          url: await createPresignedViewUrl(storageKey, meta.cleanFileName),
         }),
       );
     } catch (error) {

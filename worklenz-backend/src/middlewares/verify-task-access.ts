@@ -5,6 +5,42 @@ import {ServerResponse} from "../models/server-response";
 import db from "../config/db";
 import {log_error} from "../shared/utils";
 
+async function canAccessProject(
+  projectId: string,
+  userId: string,
+  teamId: string,
+  privileged: boolean,
+): Promise<boolean> {
+  const result = await db.query(
+    `SELECT 1
+       FROM projects p
+      WHERE p.id = $1
+        AND p.team_id = $2
+        AND (
+          $4::BOOLEAN
+          OR EXISTS (
+            SELECT 1
+              FROM team_members tm
+              JOIN roles r ON r.id = tm.role_id
+             WHERE tm.user_id = $3
+               AND tm.team_id = $2
+               AND (r.owner IS TRUE OR r.admin_role IS TRUE)
+          )
+          OR EXISTS (
+            SELECT 1
+              FROM project_members pm
+              JOIN team_members tm ON tm.id = pm.team_member_id
+             WHERE pm.project_id = $1
+               AND tm.user_id = $3
+               AND tm.team_id = $2
+          )
+        )
+      LIMIT 1;`,
+    [projectId, teamId, userId, privileged],
+  );
+  return Boolean(result.rowCount);
+}
+
 /**
  * Middleware to verify that the authenticated user has access to a specific task.
  * This prevents IDOR (Insecure Direct Object Reference) attacks by ensuring users
@@ -44,7 +80,7 @@ export default function verifyTaskAccess(
     try {
       // Verify that the task belongs to a project in the user's team
       const q = `
-        SELECT 1
+        SELECT p.id AS project_id
         FROM tasks t
         INNER JOIN projects p ON t.project_id = p.id
         WHERE t.id = $1 AND p.team_id = $2
@@ -53,7 +89,15 @@ export default function verifyTaskAccess(
       
       const result = await db.query(q, [taskId, teamId]);
       
-      if (result.rowCount && result.rowCount > 0) {
+      if (
+        result.rows[0]?.project_id &&
+        await canAccessProject(
+          result.rows[0].project_id,
+          userId,
+          teamId,
+          Boolean(req.user?.owner || req.user?.is_admin),
+        )
+      ) {
         // User has access to this task
         return next();
       }
@@ -231,7 +275,7 @@ export function verifyTaskAccessViaComment(
     try {
       // Verify that the comment belongs to a task in a project in the user's team
       const q = `
-        SELECT 1
+        SELECT p.id AS project_id
         FROM task_comments tc
         INNER JOIN tasks t ON tc.task_id = t.id
         INNER JOIN projects p ON t.project_id = p.id
@@ -241,7 +285,15 @@ export function verifyTaskAccessViaComment(
       
       const result = await db.query(q, [commentId, teamId]);
       
-      if (result.rowCount && result.rowCount > 0) {
+      if (
+        result.rows[0]?.project_id &&
+        await canAccessProject(
+          result.rows[0].project_id,
+          userId,
+          teamId,
+          Boolean(req.user?.owner || req.user?.is_admin),
+        )
+      ) {
         // User has access to this comment's task
         return next();
       }
@@ -291,7 +343,7 @@ export function verifyTaskAccessViaWorkLog(
     try {
       // Verify that the work log belongs to a task in a project in the user's team
       const q = `
-        SELECT 1
+        SELECT p.id AS project_id
         FROM task_work_log twl
         INNER JOIN tasks t ON twl.task_id = t.id
         INNER JOIN projects p ON t.project_id = p.id
@@ -301,7 +353,15 @@ export function verifyTaskAccessViaWorkLog(
       
       const result = await db.query(q, [workLogId, teamId]);
       
-      if (result.rowCount && result.rowCount > 0) {
+      if (
+        result.rows[0]?.project_id &&
+        await canAccessProject(
+          result.rows[0].project_id,
+          userId,
+          teamId,
+          Boolean(req.user?.owner || req.user?.is_admin),
+        )
+      ) {
         return next();
       }
       
@@ -349,7 +409,7 @@ export function verifyTaskAccessViaAttachment(
     try {
       // Verify that the attachment belongs to a task in a project in the user's team
       const q = `
-        SELECT 1
+        SELECT p.id AS project_id
         FROM task_attachments ta
         INNER JOIN tasks t ON ta.task_id = t.id
         INNER JOIN projects p ON t.project_id = p.id
@@ -359,7 +419,15 @@ export function verifyTaskAccessViaAttachment(
       
       const result = await db.query(q, [attachmentId, teamId]);
       
-      if (result.rowCount && result.rowCount > 0) {
+      if (
+        result.rows[0]?.project_id &&
+        await canAccessProject(
+          result.rows[0].project_id,
+          userId,
+          teamId,
+          Boolean(req.user?.owner || req.user?.is_admin),
+        )
+      ) {
         return next();
       }
       
@@ -370,6 +438,57 @@ export function verifyTaskAccessViaAttachment(
       log_error(error);
       return res.status(500).send(
         new ServerResponse(false, null, "An error occurred while verifying attachment access")
+      );
+    }
+  };
+}
+
+export function verifyTaskAccessViaCommentAttachment(
+  location: 'params' | 'body' | 'query' = 'params',
+  fieldName: string = 'id'
+) {
+  return async (req: IWorkLenzRequest, res: IWorkLenzResponse, next: NextFunction) => {
+    const userId = req.user?.id;
+    const teamId = req.user?.team_id;
+    const attachmentId = req[location]?.[fieldName];
+
+    if (!attachmentId) {
+      return res.status(400).send(new ServerResponse(false, null, "Attachment ID is required"));
+    }
+    if (!userId || !teamId) {
+      return res.status(401).send(new ServerResponse(false, null, "Authentication required"));
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT p.id AS project_id
+           FROM task_comment_attachments tca
+           JOIN tasks t ON t.id = tca.task_id
+           JOIN projects p ON p.id = t.project_id
+          WHERE tca.id = $1 AND p.team_id = $2
+          LIMIT 1;`,
+        [attachmentId, teamId],
+      );
+
+      if (
+        result.rows[0]?.project_id &&
+        await canAccessProject(
+          result.rows[0].project_id,
+          userId,
+          teamId,
+          Boolean(req.user?.owner || req.user?.is_admin),
+        )
+      ) {
+        return next();
+      }
+
+      return res.status(403).send(
+        new ServerResponse(false, null, "You do not have permission to access this attachment"),
+      );
+    } catch (error) {
+      log_error(error);
+      return res.status(500).send(
+        new ServerResponse(false, null, "An error occurred while verifying attachment access"),
       );
     }
   };
@@ -489,4 +608,3 @@ export function verifyTaskAccessViaSchedule(
     }
   };
 }
-

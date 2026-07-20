@@ -6,7 +6,7 @@ import { IWorkLenzResponse } from "../interfaces/worklenz-response";
 import db from "../config/db";
 
 import { ServerResponse } from "../models/server-response";
-import { S3_URL, TASK_STATUS_COLOR_ALPHA } from "../shared/constants";
+import { TASK_STATUS_COLOR_ALPHA } from "../shared/constants";
 import {
   getDates,
   getMinMaxOfTaskDates,
@@ -38,7 +38,7 @@ import {
   IActivityLogAttributeTypes,
   IActivityLogChangeType,
 } from "../services/activity-logs/interfaces";
-import { getKey, getRootDir, uploadBase64 } from "../shared/s3";
+import { getKey, uploadBase64 } from "../shared/storage";
 import business from "../business";
 
 export default class TasksController extends TasksControllerBase {
@@ -186,7 +186,7 @@ export default class TasksController extends TasksControllerBase {
         const q = `
         INSERT INTO task_attachments (name, task_id, team_id, project_id, uploaded_by, size, type)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, size, type, created_at, CONCAT($8::TEXT, '/', team_id, '/', project_id, '/', id, '.', type) AS url;
+        RETURNING id, name, size, type, created_at;
       `;
 
         const result = await db.query(q, [
@@ -197,7 +197,6 @@ export default class TasksController extends TasksControllerBase {
           userId,
           size,
           type,
-          `${S3_URL}/${getRootDir()}`,
         ]);
 
         const [data] = result.rows;

@@ -28,6 +28,7 @@ import { sqlInjectionDetectorWithBlocking } from "./middlewares/sql-injection-de
 import { createCsrfRotation } from "./middlewares/csrf-rotation";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
+import verifySnsMessage from "./middlewares/verify-sns-message";
 
 const app = express();
 
@@ -108,21 +109,8 @@ const parseCsvOrigins = (value?: string): string[] => {
 
 // CORS configuration
 const allowedOrigins = [
-  isProduction()
-    ? [
-        `http://localhost:5000`,
-        `http://127.0.0.1:5000`,
-        `https://app.worklenz.com`,
-        `https://www.app.worklenz.com`,
-        `https://clients.worklenz.com`,
-        `https://react.worklenz.com`,
-        `https://www.react.worklenz.com`,
-        `https://wl-client.ceydigital.dev`,
-        `https://appleid.apple.com`, // Allow Apple Sign-In OAuth requests
-        `https://api.ncinga.worklenz.com`,
-        `https://ncinga.worklenz.com`,
-        `https://www.ncinga.worklenz.com`,
-      ]
+  ...(isProduction()
+    ? []
     : [
       "http://localhost:3000",
       "http://localhost:5173",
@@ -132,23 +120,23 @@ const allowedOrigins = [
       "http://127.0.0.1:5000",
       `http://localhost:5000`,
       `https://appleid.apple.com`, // Allow Apple Sign-In OAuth requests
-    ]
-].flat();
+    ]),
+];
 
 allowedOrigins.push(
+  ...parseCsvOrigins(process.env.APP_ORIGIN),
   ...parseCsvOrigins(process.env.SERVER_CORS),
   ...parseCsvOrigins(process.env.FRONTEND_URL)
 );
 
-app.use(cors({
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     // In development, allow all requests
     if (!isProduction()) {
       return callback(null, true);
     }
     
-    // In production, allow requests without Origin header (for mobile apps, native clients)
-    // Mobile apps and native clients typically don't send Origin headers
+    // Non-browser clients do not send Origin. Cookie-authenticated browser requests do.
     if (!origin) {
       return callback(null, true);
     }
@@ -177,15 +165,16 @@ app.use(cors({
     "pragma",
   ],
   exposedHeaders: ["Set-Cookie", "X-CSRF-Token"]
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Handle preflight requests
-app.options("*", cors());
+app.options("*", cors(corsOptions));
 
-// The middleware can be re-enabled for monitoring if needed, but blocking is no longer necessary
-// if (isProduction()) {
-//   app.use(sqlInjectionDetectorWithBlocking);
-// }
+if (isProduction()) {
+  app.use(sqlInjectionDetectorWithBlocking);
+}
 
 // Session setup - must be before passport and CSRF
 app.use(sessionMiddleware);
@@ -410,18 +399,22 @@ app.get("/csrf-token", (req: Request, res: Response) => {
 // Webhook endpoints (no CSRF required)
 app.post(
   "/webhook/emails/bounce",
+  verifySnsMessage,
   safeControllerFunction(AwsSesController.handleBounceResponse),
 );
 app.post(
   "/webhook/emails/complaints",
+  verifySnsMessage,
   safeControllerFunction(AwsSesController.handleComplaintResponse),
 );
 app.post(
   "/webhook/emails/delivery",
+  verifySnsMessage,
   safeControllerFunction(AwsSesController.handleDeliveryEvents),
 );
 app.post(
   "/webhook/emails/reply",
+  verifySnsMessage,
   safeControllerFunction(AwsSesController.handleReplies),
 );
 

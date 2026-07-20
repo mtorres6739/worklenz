@@ -1853,7 +1853,7 @@ ALTER TABLE task_recurring_schedules
         ON DELETE SET NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_schedule_end_date_unique
-ON tasks (schedule_id, (end_date::DATE))
+ON tasks (schedule_id, ((end_date AT TIME ZONE 'UTC')::DATE))
 WHERE schedule_id IS NOT NULL AND end_date IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_task_recurring_schedules_timezone_id

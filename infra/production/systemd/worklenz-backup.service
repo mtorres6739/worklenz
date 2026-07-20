@@ -1,0 +1,10 @@
+[Unit]
+Description=Encrypted Worklenz PostgreSQL backup
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/worklenz
+ExecStart=/srv/worklenz/scripts/backup.sh daily
+User=root
+UMask=0077

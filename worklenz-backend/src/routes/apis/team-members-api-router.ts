@@ -7,6 +7,7 @@ import teamMembersBodyValidator from "../../middlewares/validators/team-members-
 import teamOwnerOrAdminValidator from "../../middlewares/validators/team-owner-or-admin-validator";
 import teamRoleManagementValidator from "../../middlewares/validators/team-role-management-validator";
 import safeControllerFunction from "../../shared/safe-controller-function";
+import { invitationLimiter } from "../../middlewares/auth-rate-limiters";
 
 const teamMembersApiRouter = express.Router();
 
@@ -14,7 +15,7 @@ const teamMembersApiRouter = express.Router();
 teamMembersApiRouter.get("/export-all", safeControllerFunction(TeamMembersController.exportAllMembers));
 teamMembersApiRouter.get("/export/:id", idParamValidator, safeControllerFunction(TeamMembersController.exportByMember));
 
-teamMembersApiRouter.post("/", teamRoleManagementValidator, teamMembersBodyValidator, safeControllerFunction(TeamMembersController.create));
+teamMembersApiRouter.post("/", invitationLimiter, teamRoleManagementValidator, teamMembersBodyValidator, safeControllerFunction(TeamMembersController.create));
 teamMembersApiRouter.get("/", safeControllerFunction(TeamMembersController.get));
 teamMembersApiRouter.get("/list", safeControllerFunction(TeamMembersController.getTeamMemberList));
 teamMembersApiRouter.get("/tree-map", safeControllerFunction(TeamMembersController.getTeamMembersTreeMap));
@@ -26,16 +27,16 @@ teamMembersApiRouter.get("/projects/:id", safeControllerFunction(TeamMembersCont
 teamMembersApiRouter.get("/overview/:id", teamOwnerOrAdminValidator, idParamValidator, safeControllerFunction(TeamMembersController.getOverview));
 teamMembersApiRouter.get("/overview-chart/:id", teamOwnerOrAdminValidator, idParamValidator, safeControllerFunction(TeamMembersController.getOverviewChart));
 teamMembersApiRouter.get("/:id", teamRoleManagementValidator, idParamValidator, safeControllerFunction(TeamMembersController.getById));
-teamMembersApiRouter.put("/resend-invitation", teamRoleManagementValidator, safeControllerFunction(TeamMembersController.resend_invitation));
+teamMembersApiRouter.put("/resend-invitation", invitationLimiter, teamRoleManagementValidator, safeControllerFunction(TeamMembersController.resend_invitation));
 teamMembersApiRouter.put("/:id", teamRoleManagementValidator, idParamValidator, safeControllerFunction(TeamMembersController.update));
 teamMembersApiRouter.put("/:id/name", teamRoleManagementValidator, idParamValidator, safeControllerFunction(TeamMembersController.updateMemberName));
 teamMembersApiRouter.delete("/:id", teamRoleManagementValidator, idParamValidator, safeControllerFunction(TeamMembersController.deleteById));
 teamMembersApiRouter.get("/deactivate/:id", teamRoleManagementValidator, idParamValidator, safeControllerFunction(TeamMembersController.toggleMemberActiveStatus));
 
-teamMembersApiRouter.put("/add-member/:id", teamOwnerOrAdminValidator, teamMembersBodyValidator, safeControllerFunction(TeamMembersController.addTeamMember));
+teamMembersApiRouter.put("/add-member/:id", invitationLimiter, teamOwnerOrAdminValidator, teamMembersBodyValidator, safeControllerFunction(TeamMembersController.addTeamMember));
 
 // Team invitation link routes
-teamMembersApiRouter.post("/invitation-link", teamOwnerOrAdminValidator, safeControllerFunction(TeamMembersController.generateTeamInvitationLink));
+teamMembersApiRouter.post("/invitation-link", invitationLimiter, teamOwnerOrAdminValidator, safeControllerFunction(TeamMembersController.generateTeamInvitationLink));
 teamMembersApiRouter.get("/invitation-link/status", safeControllerFunction(TeamMembersController.getTeamInvitationLinkStatus));
 teamMembersApiRouter.put("/invitation-link/revoke", teamOwnerOrAdminValidator, safeControllerFunction(TeamMembersController.revokeTeamInvitationLink));
 teamMembersApiRouter.get("/invitation-link/validate/:token", safeControllerFunction(TeamMembersController.validateTeamInvitationLink));

@@ -1,0 +1,42 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - age
+  - awscli
+  - ca-certificates
+  - curl
+  - docker-compose-v2
+  - docker.io
+  - fail2ban
+  - jq
+  - unattended-upgrades
+
+ssh_pwauth: false
+disable_root: false
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-worklenz-hardening.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+      X11Forwarding no
+      AllowTcpForwarding no
+      MaxAuthTries 3
+  - path: /etc/fail2ban/jail.d/sshd.local
+    permissions: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 4
+      bantime = 1h
+
+runcmd:
+  - systemctl enable --now docker
+  - systemctl enable --now fail2ban
+  - install -d -m 0700 /srv/worklenz /srv/worklenz/tls /srv/worklenz/scripts
+  - systemctl restart ssh
+
+final_message: "Worklenz host baseline complete"

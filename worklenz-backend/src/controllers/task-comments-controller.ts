@@ -7,11 +7,17 @@ import WorklenzControllerBase from "./worklenz-controller-base";
 import HandleExceptions from "../decorators/handle-exceptions";
 import { NotificationsService } from "../services/notifications/notifications.service";
 import { humanFileSize, log_error, megabytesToBytes, sanitizeCommentContent, sanitizePlainText } from "../shared/utils";
-import { HTML_TAG_REGEXP, S3_URL } from "../shared/constants";
+import { HTML_TAG_REGEXP } from "../shared/constants";
 import { getBaseUrl } from "../cron_jobs/helpers";
 import { ICommentEmailNotification } from "../interfaces/comment-email-notification";
 import { sendTaskComment } from "../shared/email-notifications";
-import { getRootDir, uploadBase64, getKey, getTaskAttachmentKey, createPresignedUrlWithClient } from "../shared/s3";
+import {
+  createPresignedUrlWithClient,
+  createPresignedViewUrl,
+  getRootDir,
+  getTaskAttachmentKey,
+  uploadBase64,
+} from "../shared/storage";
 import { getFreePlanSettings, getUsedStorage } from "../shared/licensing-utils";
 import { ExternalNotificationsService } from "../services/external-notifications.service";
 
@@ -141,8 +147,6 @@ export default class TaskCommentsController extends WorklenzControllerBase {
     req.body.user_id = req.user?.id;
     req.body.team_id = req.user?.team_id;
     const { mentions, attachments, task_id } = req.body;
-    const url = `${S3_URL}/${getRootDir()}`;
-
     let commentContent = req.body.content || '';
     let restoredContentForEmail = commentContent; // Keep original for email restoration
 
@@ -174,8 +178,7 @@ export default class TaskCommentsController extends WorklenzControllerBase {
         const q = `
           INSERT INTO task_comment_attachments (name, type, size, task_id, comment_id, team_id, project_id)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, name, type, task_id, comment_id, created_at,
-          CONCAT($8::TEXT, '/', team_id, '/', project_id, '/', task_id, '/', comment_id, '/', id, '.', type) AS url;
+          RETURNING id, name, type, task_id, comment_id, created_at;
         `;
         const result = await db.query(q, [
           attachment.file_name,
@@ -184,8 +187,7 @@ export default class TaskCommentsController extends WorklenzControllerBase {
           task_id,
           commentId,
           req.user?.team_id,
-          attachment.project_id,
-          url
+          attachment.project_id
         ]);
         const [data] = result.rows;
         const s3Url = await uploadBase64(attachment.file, getTaskAttachmentKey(req.user?.team_id as string, attachment.project_id, task_id, commentId, data.id, data.type));
@@ -268,14 +270,28 @@ export default class TaskCommentsController extends WorklenzControllerBase {
     const commentResult = await db.query(commentQuery, [response.id]);
     const commentData = commentResult.rows[0];
 
-    const attachmentsQuery = `SELECT id, name, type, size FROM task_comment_attachments WHERE comment_id = $1`;
+    const attachmentsQuery = `SELECT id, name, type, size, team_id, project_id, task_id, comment_id
+                              FROM task_comment_attachments WHERE comment_id = $1`;
     const attachmentsResult = await db.query(attachmentsQuery, [response.id]);
-    const commentAttachments = attachmentsResult.rows.map((att: any) => ({
-      id: att.id,
-      name: att.name,
-      type: att.type,
-      size: att.size
-    }));
+    const commentAttachments = await Promise.all(
+      attachmentsResult.rows.map(async (att: any) => ({
+        id: att.id,
+        name: att.name,
+        type: att.type,
+        size: att.size,
+        url: await createPresignedViewUrl(
+          getTaskAttachmentKey(
+            att.team_id,
+            att.project_id,
+            att.task_id,
+            att.comment_id,
+            att.id,
+            att.type,
+          ),
+          att.name,
+        ),
+      })),
+    );
 
     const commentdata = {
       attachments: commentAttachments,
@@ -417,8 +433,6 @@ export default class TaskCommentsController extends WorklenzControllerBase {
   }
 
   private static async getTaskComments(taskId: string) {
-    const url = `${S3_URL}/${getRootDir()}`;
-
     const q = `SELECT task_comments.id,
                     tc.text_content AS content,
                     task_comments.user_id,
@@ -456,7 +470,7 @@ export default class TaskCommentsController extends WorklenzControllerBase {
                       ) reactions
                     ) AS reactions,
                     (SELECT COALESCE(JSON_AGG(rec), '[]'::JSON)
-                      FROM (SELECT id, created_at, name, size, type, (CONCAT('/', team_id, '/', project_id, '/', task_id, '/', comment_id, '/', id, '.', type)) AS url
+                      FROM (SELECT id, created_at, name, size, type, team_id, project_id, task_id, comment_id
                             FROM task_comment_attachments tca
                             WHERE tca.comment_id = task_comments.id) rec) AS attachments
               FROM task_comments
@@ -488,7 +502,21 @@ export default class TaskCommentsController extends WorklenzControllerBase {
 
       for (const attachment of comment.attachments) {
         attachment.size = humanFileSize(attachment.size);
-        attachment.url = url + attachment.url;
+        attachment.url = await createPresignedViewUrl(
+          getTaskAttachmentKey(
+            attachment.team_id,
+            attachment.project_id,
+            attachment.task_id,
+            attachment.comment_id,
+            attachment.id,
+            attachment.type,
+          ),
+          attachment.name,
+        );
+        delete attachment.team_id;
+        delete attachment.project_id;
+        delete attachment.task_id;
+        delete attachment.comment_id;
       }
     }
 
@@ -624,8 +652,6 @@ export default class TaskCommentsController extends WorklenzControllerBase {
     const result = await db.query(q, [req.user?.id, req.user?.team_id, task_id]);
     const [data] = result.rows;
     const commentId = data.id;
-    const url = `${S3_URL}/${getRootDir()}`;
-
     for (const attachment of attachments) {
       if (req.user?.subscription_status === "free" && req.user?.owner_id) {
         const limits = await getFreePlanSettings();
@@ -638,18 +664,16 @@ export default class TaskCommentsController extends WorklenzControllerBase {
       const q = `
         INSERT INTO task_comment_attachments (name, type, size, task_id, comment_id, team_id, project_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, type, task_id, comment_id, created_at,
-        CONCAT($8::TEXT, '/', team_id, '/', project_id, '/', task_id, '/', comment_id, '/', id, '.', type) AS url;
+        RETURNING id, name, type, task_id, comment_id, created_at;
       `;
       const result = await db.query(q, [
         attachment.file_name,
-        attachment.size,
         attachment.file_name.split(".").pop(),
+        attachment.size,
         task_id,
         commentId,
         req.user?.team_id,
-        attachment.project_id,
-        url
+        attachment.project_id
       ]);
       const [data] = result.rows;
       const s3Url = await uploadBase64(attachment.file, getTaskAttachmentKey(req.user?.team_id as string, attachment.project_id, task_id, commentId, data.id, data.type));
@@ -707,4 +731,4 @@ export default class TaskCommentsController extends WorklenzControllerBase {
     return res.status(200).send(new ServerResponse(true, null));
   }
 
-} 
+}

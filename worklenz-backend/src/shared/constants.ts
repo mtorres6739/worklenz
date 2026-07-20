@@ -174,9 +174,12 @@ export const DEFAULT_PAGE_SIZE = 20;
 // S3 Credentials
 export const REGION = process.env.S3_REGION || "us-east-1";
 export const BUCKET = process.env.S3_BUCKET || "your-bucket-name";
-export const S3_URL = process.env.S3_URL || "https://your-s3-url";
+export const S3_ENDPOINT = process.env.S3_ENDPOINT;
+/** @deprecated Public object URLs are not used in production. */
+export const S3_URL = process.env.S3_URL || S3_ENDPOINT || "https://your-s3-url";
 export const S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID || "";
 export const S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || "";
+export const S3_FORCE_PATH_STYLE = process.env.S3_FORCE_PATH_STYLE === "true";
 
 // Azure Blob Storage Credentials
 export const STORAGE_PROVIDER = process.env.STORAGE_PROVIDER || "s3";

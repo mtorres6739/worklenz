@@ -77,21 +77,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION sys_insert_license_types() RETURNS VOID AS
-$$
-BEGIN
-    INSERT INTO public.sys_license_types (name, key, description)
-        VALUES  ('Custom Subscription', 'CUSTOM', NULL),
-                ('Free Trial', 'TRIAL', NULL),
-                ('Paddle Subscription', 'PADDLE', NULL),
-                ('Credit Subscription', 'CREDIT', NULL),
-                ('Free Plan', 'FREE', NULL),
-                ('Life Time Deal', 'LIFE_TIME_DEAL', NULL),
-                ('Self Hosted', 'SELF_HOSTED', NULL),
-                ('Annual Business Plan', 'ANNUAL_BUSINESS', 'Annual subscription for business plan features with selected user access');
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION sys_insert_project_templates() RETURNS VOID AS
 $$
 DECLARE
@@ -141,7 +126,6 @@ SELECT sys_insert_project_access_levels();
 SELECT sys_insert_task_status_categories();
 SELECT sys_insert_project_statuses();
 SELECT sys_insert_project_healths();
-SELECT sys_insert_license_types();
 -- SELECT sys_insert_project_templates();
 
 DROP FUNCTION sys_insert_task_priorities();
@@ -150,7 +134,6 @@ DROP FUNCTION sys_insert_project_access_levels();
 DROP FUNCTION sys_insert_task_status_categories();
 DROP FUNCTION sys_insert_project_statuses();
 DROP FUNCTION sys_insert_project_healths();
-DROP FUNCTION sys_insert_license_types();
 -- DROP FUNCTION sys_insert_project_templates();
 
 INSERT INTO timezones (name, abbrev, utc_offset)

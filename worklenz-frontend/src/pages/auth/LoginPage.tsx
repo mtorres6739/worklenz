@@ -390,18 +390,20 @@ const LoginPage: React.FC = () => {
           </Flex>
         </Form.Item>
 
-        <Form.Item>
-          <Space>
-            <Typography.Text style={styles.link}>{t('dontHaveAccountText')}</Typography.Text>
-            <Link
-              to="/auth/signup"
-              className="ant-typography ant-typography-link blue-link"
-              style={styles.link}
-            >
-              {t('signupButton')}
-            </Link>
-          </Space>
-        </Form.Item>
+        {import.meta.env.VITE_ALLOW_SIGNUPS === 'true' && (
+          <Form.Item>
+            <Space>
+              <Typography.Text style={styles.link}>{t('dontHaveAccountText')}</Typography.Text>
+              <Link
+                to="/auth/signup"
+                className="ant-typography ant-typography-link blue-link"
+                style={styles.link}
+              >
+                {t('signupButton')}
+              </Link>
+            </Space>
+          </Form.Item>
+        )}
       </Form>
     </Card>
   );

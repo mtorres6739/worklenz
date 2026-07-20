@@ -36,6 +36,13 @@
 </div>
 
 ---
+
+> **Deployment fork:** The `mtorres6739/worklenz` fork adds a hardened,
+> invite-only deployment for `projects.myfusionadmin.com`. Corresponding source,
+> attribution, and the reviewed upstream baseline are documented in
+> [FORK_NOTICE.md](FORK_NOTICE.md). Production operators should use the runbooks in
+> [wiki/OVERVIEW.md](wiki/OVERVIEW.md), not the upstream quick installer.
+
 Meet [Worklenz](https://worklenz.com), a powerful, open-source project management platform built to help teams plan smarter, collaborate better, and ship faster. No bloated tools. No unnecessary complexity. Just everything your team needs, in one place. 🚀
 > Worklenz is growing every day. Your bug reports, feature ideas, and feedback shape what we build next. Jump into [Discord](https://discord.com/invite/6Qmm839mgr) or open a GitHub issue - we read everything!
 
@@ -470,4 +477,3 @@ By contributing to Worklenz, you agree your contributions will be licensed under
   <br/>
   <a href="https://worklenz.com">www.worklenz.com</a>
 </div>
-

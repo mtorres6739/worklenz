@@ -28,7 +28,8 @@ const path = require('path');
 const fs   = require('fs');
 const { Pool } = require('pg');
 
-const MIGRATIONS_DIR = path.join(__dirname, '..', 'database', 'pg-migrations');
+const MIGRATIONS_DIR = process.env.WORKLENZ_MIGRATIONS_DIR ||
+  path.join(__dirname, '..', 'database', 'production-migrations');
 
 const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT = '5432', DB_NAME } = process.env;
 
