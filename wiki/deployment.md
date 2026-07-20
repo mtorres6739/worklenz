@@ -73,6 +73,10 @@ transaction, then creates a project and task. This prevents a release where logi
 succeeds but core runtime functions reference columns absent from the CE base schema.
 The same check clears a project priority and verifies the trigger restores a valid
 `sys_project_priorities` default, guarding against task/project priority ID mix-ups.
+It also verifies project financial fields, per-member grouping preferences, the
+task-creation restriction helper, and project/task i18n activity logging. These fields
+and functions are fork-owned production migrations because upstream application code
+references them while the upstream CE base schema omits them.
 
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass

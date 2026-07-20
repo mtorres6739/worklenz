@@ -42,6 +42,9 @@ Passed before opening the internal pilot:
   object-storage restore, and host reboot recovery.
 - Authenticated owner login/session verification and CSRF-protected project and task
   create, read, update, and delete checks against production.
+- Project detail grouping preferences, task-creation policy checks, and project/task
+  i18n activity logging are present in both the fresh-install schema and controlled
+  production migrations. The final smoke run produced no schema or application errors.
 - Schema-compatible rollback from
   `0eed2c4af3fc98da5345c1194d4d87a75e489a29` to
   `7ae62f9d45aaea10bc806fbbe365ba2f6a9cf585`, including a full authenticated
@@ -51,9 +54,9 @@ Passed before opening the internal pilot:
 
 Production release evidence:
 
-- Deployed SHA: `0eed2c4af3fc98da5345c1194d4d87a75e489a29`.
-- CI: <https://github.com/mtorres6739/worklenz/actions/runs/29763713968>.
-- Immutable release: <https://github.com/mtorres6739/worklenz/actions/runs/29763713983>.
+- Deployed SHA: `ef6ab439a1801bcacf531fdfbcc482e345f8d389`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/29765572464>.
+- Immutable release: <https://github.com/mtorres6739/worklenz/actions/runs/29765572619>.
 
 Still gated after the internal launch:
 
