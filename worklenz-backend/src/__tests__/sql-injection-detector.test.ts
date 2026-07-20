@@ -10,7 +10,10 @@ describe("SQL injection detector", () => {
       {
         path: "/secure/login",
         query,
-        body: Object.assign(Object.create(null), { email: "owner@example.test" }),
+        body: Object.assign(Object.create(null), {
+          email: "owner@example.test",
+          color_code: "#1677ff",
+        }),
         params: Object.create(null),
         headers: {},
         socket: {},

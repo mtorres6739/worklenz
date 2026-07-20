@@ -41,7 +41,6 @@ const SQL_INJECTION_PATTERNS = [
   // Comment-based injection
   /(--[^\r\n]*)/,
   /(\/\*.*\*\/)/,
-  /(#[^\r\n]*)/,
   
   // Command execution
   /(exec\s*\()/i,
