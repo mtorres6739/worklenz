@@ -44,6 +44,8 @@ jobs:
           POSTGRES_DB: worklenz
           PGPASSWORD: test-only-password
           PGHOST: 127.0.0.1
+          PGUSER: worklenz
+          PGDATABASE: worklenz
           DB_USER: worklenz
           DB_PASSWORD: test-only-password
           DB_HOST: 127.0.0.1
