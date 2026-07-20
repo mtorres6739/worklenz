@@ -54,6 +54,10 @@ The gateway joins both the non-internal `edge` network and the private `app` net
 Docker does not publish host ports for a container attached only to an internal network.
 Backend, PostgreSQL, and Redis remain unexposed; only the gateway joins `edge`.
 
+The frontend runtime injects `VITE_API_URL` from `APP_ORIGIN`. Do not leave it empty:
+the upstream hostname fallback prepends `api.` and would send authentication requests
+to a nonexistent host such as `api.projects.myfusionadmin.com`.
+
 The upstream base initialization omits the separate import-worker SQL directory. The
 fork-owned `2026072000010_import_jobs` production migration creates those tables before
 `IMPORT_WORKER_ENABLED=true` is used. Its down migration intentionally preserves staged
