@@ -53,7 +53,7 @@ jobs:
             VITE_EDITION=ce
             VITE_ALLOW_SIGNUPS=false
       - name: Scan immutable image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/mtorres6739/${{ matrix.image }}:${{ github.sha }}
           severity: CRITICAL
