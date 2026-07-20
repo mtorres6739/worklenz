@@ -55,6 +55,12 @@ fork-owned `2026072000010_import_jobs` production migration creates those tables
 `IMPORT_WORKER_ENABLED=true` is used. Its down migration intentionally preserves staged
 import data for application-image rollback compatibility.
 
+The open-core base schema also references `sys_license_types` from registration and
+session functions without creating the table. The fork-owned
+`2026072000005_license_types` migration restores and seeds that lookup before imports.
+Fresh-install CI verifies the import table and executes owner registration inside a
+rolled-back transaction so schema initialization cannot pass while signup is broken.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
