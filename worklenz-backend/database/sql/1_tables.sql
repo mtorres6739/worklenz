@@ -1245,6 +1245,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     status_sort_order   INTEGER                  DEFAULT 0                  NOT NULL,
     priority_sort_order INTEGER                  DEFAULT 0                  NOT NULL,
     phase_sort_order    INTEGER                  DEFAULT 0                  NOT NULL,
+    member_sort_order   INTEGER                  DEFAULT 0                  NOT NULL,
     billable            BOOLEAN                  DEFAULT TRUE,
     schedule_id         UUID
 );
@@ -1338,16 +1339,19 @@ ALTER TABLE tasks
 ALTER TABLE tasks ADD CONSTRAINT tasks_status_sort_order_check CHECK (status_sort_order >= 0);
 ALTER TABLE tasks ADD CONSTRAINT tasks_priority_sort_order_check CHECK (priority_sort_order >= 0);
 ALTER TABLE tasks ADD CONSTRAINT tasks_phase_sort_order_check CHECK (phase_sort_order >= 0);
+ALTER TABLE tasks ADD CONSTRAINT tasks_member_sort_order_check CHECK (member_sort_order >= 0);
 
 -- Add indexes for performance on new sort order columns
 CREATE INDEX IF NOT EXISTS idx_tasks_status_sort_order ON tasks(project_id, status_sort_order);
 CREATE INDEX IF NOT EXISTS idx_tasks_priority_sort_order ON tasks(project_id, priority_sort_order);
 CREATE INDEX IF NOT EXISTS idx_tasks_phase_sort_order ON tasks(project_id, phase_sort_order);
+CREATE INDEX IF NOT EXISTS idx_tasks_member_sort_order ON tasks(project_id, member_sort_order);
 
 -- Add comments for documentation
 COMMENT ON COLUMN tasks.status_sort_order IS 'Sort order when grouped by status';
 COMMENT ON COLUMN tasks.priority_sort_order IS 'Sort order when grouped by priority';
 COMMENT ON COLUMN tasks.phase_sort_order IS 'Sort order when grouped by phase';
+COMMENT ON COLUMN tasks.member_sort_order IS 'Sort order when grouped by assignee';
 
 CREATE TABLE IF NOT EXISTS tasks_assignees (
     task_id           UUID                                               NOT NULL,

@@ -126,7 +126,8 @@ jobs:
             FROM project_members pm
             WHERE pm.project_id = created_project_id;
 
-            PERFORM t.manual_progress, t.progress_value, t.progress_mode, t.weight
+            PERFORM t.manual_progress, t.progress_value, t.progress_mode, t.weight,
+                    t.member_sort_order
             FROM tasks t
             WHERE t.id = created_task_id;
 

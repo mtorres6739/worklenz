@@ -108,6 +108,10 @@ The follow-up `2026072000066_task-template-immutable-lock` migration stores the 
 installation lock on the template row. Import history may be removed when a disposable
 or client project is deleted, but the installed template version remains immutable.
 
+The `2026072000067_task_member_sort_order` compatibility migration adds the assignee-
+group sort column already used by legacy and versioned template imports. Fresh-install
+CI selects it from a real task so schema drift cannot break imports only in production.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
