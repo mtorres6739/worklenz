@@ -50,6 +50,11 @@ Nginx filesystem layout. The release workflow mounts a temporary certificate and
 `nginx -t` against every gateway image. The deployer also clears inherited application
 image variables so only the requested commit SHA can select production images.
 
+The upstream base initialization omits the separate import-worker SQL directory. The
+fork-owned `2026072000010_import_jobs` production migration creates those tables before
+`IMPORT_WORKER_ENABLED=true` is used. Its down migration intentionally preserves staged
+import data for application-image rollback compatibility.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
