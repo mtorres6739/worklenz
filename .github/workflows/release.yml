@@ -52,12 +52,24 @@ jobs:
             RELEASE_VERSION=${{ github.sha }}
             VITE_EDITION=ce
             VITE_ALLOW_SIGNUPS=false
-      - name: Verify backend migration runtime
+      - name: Verify backend runtime
         if: matrix.name == 'backend'
-        run: >-
-          docker run --rm --entrypoint sh
-          ghcr.io/mtorres6739/${{ matrix.image }}:${{ github.sha }}
-          -c 'test -x /app/node_modules/.bin/node-pg-migrate'
+        run: |
+          image="ghcr.io/mtorres6739/${{ matrix.image }}:${{ github.sha }}"
+          docker run --rm --entrypoint sh "$image" -ec '
+            test -x /app/node_modules/.bin/node-pg-migrate
+            node -e "require.resolve(\"swagger-ui-express\"); require.resolve(\"yamljs\")"
+          '
+          docker run --rm --entrypoint node \
+            -e NODE_ENV=production \
+            -e IMPORT_WORKER_ENABLED=false \
+            -e ENABLE_GOOGLE_LOGIN=false \
+            -e ENABLE_APPLE_LOGIN=false \
+            -e STORAGE_PROVIDER=s3 \
+            -e S3_REGION=auto \
+            -e S3_BUCKET=runtime-smoke \
+            "$image" \
+            -e 'require("./build/app"); setTimeout(() => process.exit(0), 1000)'
       - name: Scan immutable image
         uses: aquasecurity/trivy-action@v0.36.0
         with:

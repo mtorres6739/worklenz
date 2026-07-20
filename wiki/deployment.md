@@ -41,7 +41,9 @@ logs, or command output.
 Ubuntu 24.04 does not provide the `awscli` package in the selected Hetzner image.
 The cloud-init baseline installs checksum-pinned AWS CLI v2 instead. The backend
 production image must retain `node-pg-migrate`; the release workflow runs an image-level
-check before publishing a deployable migration artifact.
+check for the migration binary, pruned runtime modules, and application startup imports
+before publishing a deployable artifact. Packages imported by `build/app.js`, including
+the Swagger UI and YAML loader, must remain production dependencies.
 
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
