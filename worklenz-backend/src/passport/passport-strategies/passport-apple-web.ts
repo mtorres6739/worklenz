@@ -6,6 +6,7 @@ import db from "../../config/db";
 import { log_error } from "../../shared/utils";
 import { ERROR_KEY } from "./passport-constants";
 import { sendWelcomeEmail } from "../../shared/email-templates";
+import { isAppleWebLoginConfigured } from "../auth-provider-config";
 
 /**
  * Apple ID Token Payload Interface
@@ -225,21 +226,10 @@ async function handleAppleWebAuth(
  * This strategy is conditionally exported based on environment configuration
  */
 
-// Check if Apple Sign-In is properly configured
-const isAppleConfigured = () => {
-  return !!(
-    process.env.APPLE_CLIENT_ID &&
-    process.env.APPLE_TEAM_ID &&
-    process.env.APPLE_KEY_ID &&
-    process.env.APPLE_PRIVATE_KEY_PATH &&
-    process.env.APPLE_CALLBACK_URL
-  );
-};
-
 // Only create strategy if Apple is configured
 let appleStrategy: any = null;
 
-if (isAppleConfigured()) {
+if (isAppleWebLoginConfigured()) {
   appleStrategy = new AppleStrategy(
     {
       clientID: process.env.APPLE_CLIENT_ID as string,
@@ -269,7 +259,7 @@ if (isAppleConfigured()) {
   );
 } else {
   console.warn(
-    "⚠️  Apple Sign-In Web OAuth is not configured. Set APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH, and APPLE_CALLBACK_URL in .env to enable it.",
+    "Apple Sign-In Web OAuth is disabled or not fully configured.",
   );
 }
 

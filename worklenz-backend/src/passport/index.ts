@@ -9,6 +9,10 @@ import AppleMobileLogin from "./passport-strategies/passport-apple-mobile";
 import AppleWebLogin from "./passport-strategies/passport-apple-web";
 import LocalLogin from "./passport-strategies/passport-local-login";
 import LocalSignup from "./passport-strategies/passport-local-signup";
+import {
+  isAppleMobileLoginConfigured,
+  isGoogleMobileLoginConfigured,
+} from "./auth-provider-config";
 
 /**
  * Use any passport middleware before the serialize and deserialize
@@ -17,9 +21,17 @@ import LocalSignup from "./passport-strategies/passport-local-signup";
 export default (passport: PassportStatic) => {
   passport.use("local-login", LocalLogin);
   passport.use("local-signup", LocalSignup);
-  passport.use(GoogleLogin);
-  passport.use("google-mobile", GoogleMobileLogin);
-  passport.use("apple-mobile", AppleMobileLogin);
+  if (GoogleLogin) {
+    passport.use(GoogleLogin);
+  }
+
+  if (isGoogleMobileLoginConfigured()) {
+    passport.use("google-mobile", GoogleMobileLogin);
+  }
+
+  if (isAppleMobileLoginConfigured()) {
+    passport.use("apple-mobile", AppleMobileLogin);
+  }
 
   // Only register Apple Web strategy if it's configured
   if (AppleWebLogin) {

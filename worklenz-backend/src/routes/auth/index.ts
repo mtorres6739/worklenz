@@ -13,8 +13,17 @@ import { log_error } from "../../shared/utils";
 import { resetPasswordLimiter, updatePasswordLimiter } from "../../middlewares/reset-password-rate-limiter";
 import { loginLimiter, signupLimiter } from "../../middlewares/auth-rate-limiters";
 import signupPolicy from "../../middlewares/signup-policy";
+import {
+  isAppleMobileLoginConfigured,
+  isAppleWebLoginConfigured,
+  isGoogleMobileLoginConfigured,
+  isGoogleWebLoginConfigured,
+} from "../../passport/auth-provider-config";
 
 const authRouter = express.Router();
+
+const authProviderUnavailable = (_req: express.Request, res: express.Response) =>
+  res.status(404).send({ done: false, message: "Authentication provider is unavailable." });
 
 // Local authentication
 const options = (key: string): passport.AuthenticateOptions => ({
@@ -35,6 +44,8 @@ authRouter.post("/verify-captcha", safeControllerFunction(AuthController.verifyC
 
 // Google authentication
 authRouter.get("/google", (req, res, next) => {
+  if (!isGoogleWebLoginConfigured()) return authProviderUnavailable(req, res);
+
   return passport.authenticate("google", {
     scope: ["email", "profile"],
     state: JSON.stringify({
@@ -47,6 +58,8 @@ authRouter.get("/google", (req, res, next) => {
 });
 
 authRouter.get("/google/verify", (req, res, next) => {
+  if (!isGoogleWebLoginConfigured()) return authProviderUnavailable(req, res);
+
   let sessionError = "";
   if ((req.session as any).error) {
     sessionError = `?error=${encodeURIComponent((req.session as any).error as string)}`;
@@ -81,13 +94,27 @@ authRouter.get("/google/verify", (req, res, next) => {
 });
 
 // Mobile Google Sign-In using Passport strategy
-authRouter.post("/google/mobile", AuthController.googleMobileAuthPassport);
+authRouter.post(
+  "/google/mobile",
+  (req, res, next) => isGoogleMobileLoginConfigured()
+    ? next()
+    : authProviderUnavailable(req, res),
+  AuthController.googleMobileAuthPassport,
+);
 
 // Mobile Apple Sign-In using Passport strategy
-authRouter.post("/apple/mobile", AuthController.appleMobileAuthPassport);
+authRouter.post(
+  "/apple/mobile",
+  (req, res, next) => isAppleMobileLoginConfigured()
+    ? next()
+    : authProviderUnavailable(req, res),
+  AuthController.appleMobileAuthPassport,
+);
 
 // Apple Web OAuth authentication
 authRouter.get("/apple", (req, res, next) => {
+  if (!isAppleWebLoginConfigured()) return authProviderUnavailable(req, res);
+
   return passport.authenticate("apple", {
     scope: ["name", "email"],
     state: JSON.stringify({
@@ -100,6 +127,8 @@ authRouter.get("/apple", (req, res, next) => {
 });
 
 authRouter.post("/apple/verify", (req, res, next) => {
+  if (!isAppleWebLoginConfigured()) return authProviderUnavailable(req, res);
+
   let error = "";
   if ((req.session as any).error) {
     error = `?error=${encodeURIComponent((req.session as any).error as string)}`;
