@@ -100,6 +100,10 @@ jobs:
               RAISE EXCEPTION 'Fresh CE project default priority is invalid';
             END IF;
 
+            PERFORM p.currency, p.budget
+            FROM projects p
+            WHERE p.id = created_project_id;
+
             SELECT (create_task(json_build_object(
               'name', 'CI Task',
               'project_id', created_project_id,

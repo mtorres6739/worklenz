@@ -537,7 +537,9 @@ CREATE TABLE IF NOT EXISTS projects (
     use_weighted_progress  BOOLEAN                  DEFAULT FALSE NOT NULL,
     use_time_progress      BOOLEAN                  DEFAULT FALSE NOT NULL,
     auto_assign_task_creator BOOLEAN                DEFAULT FALSE NOT NULL,
-    restrict_task_creation BOOLEAN                  DEFAULT FALSE NOT NULL
+    restrict_task_creation BOOLEAN                  DEFAULT FALSE NOT NULL,
+    currency               VARCHAR(3)               DEFAULT 'USD',
+    budget                 NUMERIC                  DEFAULT 0
 );
 
 ALTER TABLE projects
