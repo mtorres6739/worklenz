@@ -82,6 +82,13 @@ task-creation restriction helper, and project/task i18n activity logging. These 
 and functions are fork-owned production migrations because upstream application code
 references them while the upstream CE base schema omits them.
 
+The upstream CE base schema also omits task progress fields and the team reporting
+hierarchy field used by current controllers. The fork-owned
+`2026072000055_application_schema_compatibility` migration adds the task progress
+columns plus `team_members.reports_to_member_id` defensively. Fresh-install CI selects
+these fields from real task and owner fixtures so a release cannot pass while project
+views would fail with `undefined_column` errors.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at

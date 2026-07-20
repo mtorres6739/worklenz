@@ -108,6 +108,14 @@ jobs:
             FROM project_members pm
             WHERE pm.project_id = created_project_id;
 
+            PERFORM t.manual_progress, t.progress_value, t.progress_mode, t.weight
+            FROM tasks t
+            WHERE t.id = created_task_id;
+
+            PERFORM tm.reports_to_member_id
+            FROM team_members tm
+            WHERE tm.user_id = owner_id;
+
             IF is_task_creation_restricted(owner_id, created_project_id) THEN
               RAISE EXCEPTION 'Fresh CE owner was incorrectly blocked from task creation';
             END IF;

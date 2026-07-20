@@ -44,7 +44,11 @@ Passed before opening the internal pilot:
   create, read, update, and delete checks against production.
 - Project detail grouping preferences, task-creation policy checks, and project/task
   i18n activity logging are present in both the fresh-install schema and controlled
-  production migrations. The final smoke run produced no schema or application errors.
+  production migrations.
+- A post-launch schema compatibility issue was found when project views queried task
+  progress and team reporting fields omitted by the upstream CE base schema. Release
+  `2026072000055_application_schema_compatibility` adds those fields, and CI now checks
+  them against real task and owner fixtures before release.
 - Schema-compatible rollback from
   `0eed2c4af3fc98da5345c1194d4d87a75e489a29` to
   `7ae62f9d45aaea10bc806fbbe365ba2f6a9cf585`, including a full authenticated
