@@ -70,6 +70,20 @@ jobs:
             -e S3_BUCKET=runtime-smoke \
             "$image" \
             -e 'require("./build/app"); setTimeout(() => process.exit(0), 1000)'
+      - name: Validate gateway configuration
+        if: matrix.name == 'gateway'
+        run: |
+          tls_dir="$(mktemp -d)"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj '/CN=projects.myfusionadmin.com' \
+            -keyout "$tls_dir/origin-key.pem" \
+            -out "$tls_dir/origin.pem" >/dev/null 2>&1
+          docker run --rm \
+            --add-host backend:127.0.0.1 \
+            --add-host frontend:127.0.0.1 \
+            -v "$tls_dir:/etc/nginx/tls:ro" \
+            "ghcr.io/mtorres6739/${{ matrix.image }}:${{ github.sha }}" \
+            nginx -t
       - name: Scan immutable image
         uses: aquasecurity/trivy-action@v0.36.0
         with:

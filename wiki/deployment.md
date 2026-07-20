@@ -45,6 +45,11 @@ check for the migration binary, pruned runtime modules, and application startup 
 before publishing a deployable artifact. Packages imported by `build/app.js`, including
 the Swagger UI and YAML loader, must remain production dependencies.
 
+The Alpine gateway image owns its Nginx `proxy_params` file; do not assume a Debian
+Nginx filesystem layout. The release workflow mounts a temporary certificate and runs
+`nginx -t` against every gateway image. The deployer also clears inherited application
+image variables so only the requested commit SHA can select production images.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at
