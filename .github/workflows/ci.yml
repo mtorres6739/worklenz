@@ -104,7 +104,7 @@ jobs:
                 ORDER BY ts.sort_order
                 LIMIT 1
               )
-            )) ->> 'id')::UUID INTO task_id;
+            )) -> 'task' ->> 'id')::UUID INTO task_id;
             IF task_id IS NULL THEN
               RAISE EXCEPTION 'Fresh CE task could not be created';
             END IF;

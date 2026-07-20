@@ -70,7 +70,7 @@ task_json="$(curl -skS -H "$origin_host" -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $token" -b "$cookie_jar" --data "$task_payload" \
   "$base_url/api/v1/tasks")"
 [[ "$(jq -r '.done' <<<"$task_json")" == "true" ]]
-task_id="$(jq -er '.body.id' <<<"$task_json")"
+task_id="$(jq -er '.body.task.id' <<<"$task_json")"
 
 task_read="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
   "$base_url/api/v1/tasks/info?task_id=$task_id&project_id=$project_id")"
