@@ -71,6 +71,8 @@ adds empty CE compatibility tables plus the self-hosted organization override co
 Fresh-install CI registers and deserializes a real owner inside a rolled-back
 transaction, then creates a project and task. This prevents a release where login
 succeeds but core runtime functions reference columns absent from the CE base schema.
+The same check clears a project priority and verifies the trigger restores a valid
+`sys_project_priorities` default, guarding against task/project priority ID mix-ups.
 
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass

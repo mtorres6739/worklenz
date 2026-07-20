@@ -88,6 +88,18 @@ jobs:
               RAISE EXCEPTION 'Fresh CE project could not be created';
             END IF;
 
+            UPDATE projects
+            SET priority_id = NULL
+            WHERE id = created_project_id;
+            IF NOT EXISTS (
+              SELECT 1
+              FROM projects p
+              INNER JOIN sys_project_priorities spp ON spp.id = p.priority_id
+              WHERE p.id = created_project_id AND spp.name = 'Medium'
+            ) THEN
+              RAISE EXCEPTION 'Fresh CE project default priority is invalid';
+            END IF;
+
             SELECT (create_task(json_build_object(
               'name', 'CI Task',
               'project_id', created_project_id,

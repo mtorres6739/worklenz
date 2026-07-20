@@ -15,12 +15,12 @@ exports.up = async (pgm) => {
     BEGIN
       SELECT id
       INTO _medium_priority_id
-      FROM task_priorities
+      FROM sys_project_priorities
       WHERE name = 'Medium'
       LIMIT 1;
 
       IF _medium_priority_id IS NULL THEN
-        RAISE EXCEPTION 'Medium task priority is required before setting project default priority';
+        RAISE EXCEPTION 'Medium project priority is required before setting project default priority';
       END IF;
 
       UPDATE projects
@@ -34,7 +34,7 @@ exports.up = async (pgm) => {
       ) THEN
         ALTER TABLE projects
           ADD CONSTRAINT projects_priority_id_fk
-            FOREIGN KEY (priority_id) REFERENCES task_priorities(id);
+            FOREIGN KEY (priority_id) REFERENCES sys_project_priorities(id);
       END IF;
     END
     $$;
@@ -45,7 +45,7 @@ exports.up = async (pgm) => {
     BEGIN
       IF NEW.priority_id IS NULL THEN
         SELECT id
-        FROM task_priorities
+        FROM sys_project_priorities
         WHERE name = 'Medium'
         LIMIT 1
         INTO NEW.priority_id;
