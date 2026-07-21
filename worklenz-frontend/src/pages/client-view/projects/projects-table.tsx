@@ -1,88 +1,39 @@
-import {
-  Avatar,
-  Card,
-  Progress,
-  Table,
-  TableProps,
-  Tooltip,
-  Typography,
-} from '@/shared/antd-imports';
+import { Avatar, Card, Progress, Table, TableProps, Tag, Tooltip, Typography } from '@/shared/antd-imports';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { durationDateFormat } from '../../../utils/durationDateFormat';
+import { useNavigate } from 'react-router-dom';
 import CustomAvatar from '../../../components/CustomAvatar';
-import { useAppSelector } from '../../../hooks/useAppSelector';
+import { PortalProject } from '@/api/client-portal/portal-client.api';
 
-const ProjectsTable = () => {
-  // localization
-  const { t } = useTranslation('client-view/client-view-projects');
-
-  // get project list from client view reducer project reducer
-  const projectList = useAppSelector(state => state.clientViewReducer.projectsReducer.projectsList);
-
-  // table columns
-  const columns: TableProps['columns'] = [
+const ProjectsTable = ({ projects }: { projects: PortalProject[] }) => {
+  const navigate = useNavigate();
+  const columns: TableProps<PortalProject>['columns'] = [
     {
-      key: 'name',
-      title: t('table.header.name'),
-      render: record => <Typography.Text>{record.name}</Typography.Text>,
-      sorter: (a, b) => a.name.length - b.name.length,
+      key: 'name', title: 'Project', dataIndex: 'name',
+      render: (value, record) => <div><Typography.Text strong>{value}</Typography.Text><br /><Typography.Text type="secondary">{record.key}</Typography.Text></div>,
     },
+    { key: 'status', title: 'Status', dataIndex: 'status', render: value => <Tag color="blue">{value}</Tag> },
     {
-      key: 'status',
-      title: t('table.header.status'),
-      render: record => <Typography.Text>{record.status}</Typography.Text>,
-    },
-    {
-      key: 'taskProgress',
-      title: t('table.header.taskProgress'),
-      render: (text, record) => {
-        const { totalTasks, completedTasks } = record;
-        const percent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-        return (
-          <Tooltip title={`${completedTasks} / ${totalTasks} tasks completed.`}>
-            <Progress percent={percent} className="project-progress" />
-          </Tooltip>
-        );
+      key: 'progress', title: 'Progress',
+      render: (_, record) => {
+        const percent = record.total_tasks > 0 ? Math.round((record.completed_tasks / record.total_tasks) * 100) : 0;
+        return <Tooltip title={`${record.completed_tasks} of ${record.total_tasks} tasks complete`}><Progress percent={percent} style={{ minWidth: 150 }} /></Tooltip>;
       },
     },
     {
-      key: 'lastUpdates',
-      title: t('table.header.lastUpdates'),
-      sorter: (a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime(),
-      showSorterTooltip: false,
-      render: record => {
-        return durationDateFormat(record.lastUpdated);
-      },
+      key: 'members', title: 'Team',
+      render: (_, record) => <Avatar.Group>{record.members.map(member => <CustomAvatar key={member.id} avatarName={member.name} />)}</Avatar.Group>,
     },
-    {
-      key: 'members',
-      title: t('table.header.members'),
-      render: record => (
-        <Avatar.Group>
-          {record?.members.map((member: string, index: number) => (
-            <CustomAvatar key={index} avatarName={member} />
-          ))}
-        </Avatar.Group>
-      ),
-    },
+    { key: 'access', title: 'Access', dataIndex: 'access_level', render: value => <Tag>{value === 'comment' ? 'Can comment' : 'Read only'}</Tag> },
   ];
   return (
-    <Card style={{ height: 'calc(100vh - 280px)' }}>
+    <Card>
       <Table
+        rowKey="id"
         columns={columns}
-        dataSource={projectList}
-        pagination={{
-          size: 'small',
-        }}
-        scroll={{
-          x: 'max-content',
-        }}
-        onRow={record => {
-          return {
-            style: { cursor: 'pointer' },
-          };
-        }}
+        dataSource={projects}
+        pagination={{ pageSize: 20, size: 'small' }}
+        scroll={{ x: 'max-content' }}
+        onRow={record => ({ onClick: () => navigate(`/client-portal/projects/${record.id}`), style: { cursor: 'pointer' } })}
       />
     </Card>
   );

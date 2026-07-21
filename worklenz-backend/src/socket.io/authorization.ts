@@ -58,8 +58,15 @@ export async function verifyProjectAccessSocket(
     const q = `
       SELECT 1
       FROM projects p
-      INNER JOIN team_members tm ON p.team_id = tm.team_id
-      WHERE p.id = $1 AND tm.user_id = $2
+      INNER JOIN team_members tm
+        ON p.team_id = tm.team_id
+       AND tm.user_id = $2
+      INNER JOIN roles r ON r.id = tm.role_id
+      LEFT JOIN project_members pm
+        ON pm.project_id = p.id
+       AND pm.team_member_id = tm.id
+      WHERE p.id = $1
+        AND (r.owner = TRUE OR r.admin_role = TRUE OR pm.id IS NOT NULL)
       LIMIT 1;
     `;
     const result = await db.query(q, [projectId, userId]);

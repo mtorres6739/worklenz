@@ -64,6 +64,14 @@ import business from "../business";
 export function register(io: any, socket: Socket) {
   log(socket.id, "client registered");
 
+  // A client-portal socket is deliberately not wired to any staff mutation
+  // command. Its rooms and events are registered through the isolated seam only.
+  if (socket.data?.portalActor) {
+    business.registerClientPortalSocketHandlers(io, socket);
+    socket.on("disconnect", (reason) => on_disconnect(io, socket, reason));
+    return;
+  }
+
   socket.on(SocketEvents.LOGIN.toString(), id => on_login(io, socket, id));
   socket.on(SocketEvents.QUICK_TASK.toString(), data => on_quick_task(io, socket, data));
   socket.on(SocketEvents.QUICK_ASSIGNEES_UPDATE.toString(), data => on_quick_assign_or_remove(io, socket, data));
@@ -120,7 +128,7 @@ export function register(io: any, socket: Socket) {
   socket.on(SocketEvents.SCHEDULE_TASK_UPDATE.toString(), data => on_schedule_task_drag_change(io, socket, data));
   socket.on(SocketEvents.TASK_DUE_TIME_CHANGE.toString(), data => on_task_due_time_change(io, socket, data));
   
-  // Client Portal events (EE: registered by business seam; CE: no-op)
+  // Client Portal events (registered only for portal-audience sockets above).
   business.registerClientPortalSocketHandlers(io, socket);
 
   // socket.io built-in event

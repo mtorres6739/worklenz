@@ -12,6 +12,7 @@ import {
   message,
   Popconfirm,
   Tag,
+  Checkbox,
   ProjectOutlined,
   PlusOutlined,
   DeleteOutlined,
@@ -49,6 +50,8 @@ const ClientSettingsDrawer = () => {
 
   // Local state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [accessLevel, setAccessLevel] = useState<'view' | 'comment'>('view');
+  const [canViewFiles, setCanViewFiles] = useState(true);
 
   // RTK Query hooks - only load data when drawer is open
   const {
@@ -106,10 +109,14 @@ const ClientSettingsDrawer = () => {
       await assignProject({
         clientId: selectedClientId,
         projectId: selectedProjectId,
+        accessLevel,
+        canViewFiles,
       }).unwrap();
 
       message.success(t('projectAssignedSuccessMessage') || 'Project assigned successfully');
       setSelectedProjectId(null);
+      setAccessLevel('view');
+      setCanViewFiles(true);
       // Refetch client details to update the project list
       refetchClientDetails();
       refetchClientProjects();
@@ -207,6 +214,19 @@ const ClientSettingsDrawer = () => {
       width: 150,
     },
     {
+      key: 'portalAccess',
+      title: 'Portal Access',
+      render: (_: any, record: any) => (
+        <Flex gap={4} wrap>
+          <Tag>{record.access_level === 'comment' ? 'Can comment' : 'Read only'}</Tag>
+          <Tag color={record.can_view_files ? 'blue' : 'default'}>
+            {record.can_view_files ? 'Files visible' : 'Files hidden'}
+          </Tag>
+        </Flex>
+      ),
+      width: 190,
+    },
+    {
       key: 'actions',
       title: t('actionsColumn') || 'Actions',
       width: 120,
@@ -239,6 +259,25 @@ const ClientSettingsDrawer = () => {
             onConfirm={() => handleRemoveProject(record.id)}
           >
             <Tooltip title={t('removeProjectTooltip') || 'Remove Project'}>
+              <div style={{ minWidth: 150 }}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                  Portal access
+                </Typography.Text>
+                <Select
+                  value={accessLevel}
+                  onChange={setAccessLevel}
+                  style={{ width: '100%' }}
+                  options={[
+                    { value: 'view', label: 'Read only' },
+                    { value: 'comment', label: 'Can comment' },
+                  ]}
+                />
+              </div>
+
+              <Checkbox checked={canViewFiles} onChange={event => setCanViewFiles(event.target.checked)}>
+                Show files
+              </Checkbox>
+
               <Button
                 type="link"
                 icon={<DeleteOutlined />}

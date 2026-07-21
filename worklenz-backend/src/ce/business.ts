@@ -1,5 +1,8 @@
 import { IBusinessEdition } from "../business/types";
 import { SlackIntegrationService } from "../services/slack-integration.service";
+import clientPortalRouter from "../routes/client-portal-router";
+import clientPortalAdminApiRouter from "../routes/apis/client-portal-admin-api-router";
+import { registerClientPortalSocketHandlers } from "../socket.io/client-portal";
 
 /**
  * CE (open-core) edition stub.
@@ -9,17 +12,23 @@ import { SlackIntegrationService } from "../services/slack-integration.service";
  * This file must not import any `src/ee/*` code.
  */
 const ceBusiness: IBusinessEdition = {
-  registerBusinessRoutes(): void {
-    // No business routes in the open-core build.
+  registerBusinessRoutes(api): void {
+    if (process.env.FEATURE_CLIENT_PORTAL === "true") {
+      api.use("/clients/portal", clientPortalAdminApiRouter);
+    }
   },
   registerBusinessPublicRoutes(): void {
     // No public business routes in the open-core build.
   },
-  registerClientPortalRoutes(): void {
-    // Client portal is a Business-plan feature; not available in open-core.
+  registerClientPortalRoutes(app): void {
+    if (process.env.FEATURE_CLIENT_PORTAL === "true") {
+      app.use("/api/client-portal", clientPortalRouter);
+    }
   },
-  registerClientPortalSocketHandlers(): void {
-    // Client portal socket events are a Business-plan feature; not available in open-core.
+  registerClientPortalSocketHandlers(io, socket): void {
+    if (process.env.FEATURE_CLIENT_PORTAL === "true" && socket.data?.portalActor) {
+      void registerClientPortalSocketHandlers(io, socket);
+    }
   },
   registerWebhooks(): void {
     // No payment webhooks in open-core (no billing provider).

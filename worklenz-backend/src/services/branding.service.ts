@@ -33,13 +33,22 @@ export async function getBrandingForOwner(ownerId: string) {
   };
 }
 
-export async function getPublicBranding() {
-  const result = await db.query(
-    `SELECT o.user_id
-       FROM organizations o
-      ORDER BY o.created_at, o.id
-      LIMIT 1;`,
-  );
+export async function getPublicBranding(teamId?: string) {
+  const result = teamId
+    ? await db.query(
+      `SELECT o.user_id
+         FROM teams t
+         JOIN organizations o ON (t.organization_id = o.id OR t.user_id = o.user_id)
+        WHERE t.id = $1::UUID
+        LIMIT 1;`,
+      [teamId],
+    )
+    : await db.query(
+      `SELECT o.user_id
+         FROM organizations o
+        ORDER BY o.created_at, o.id
+        LIMIT 1;`,
+    );
   if (!result.rows[0]?.user_id) return {
     display_name: "SDM Projects",
     accent_color: "#1677ff",

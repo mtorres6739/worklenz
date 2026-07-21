@@ -74,6 +74,8 @@ export interface ClientPortalProject {
   completedTasks: number;
   lastUpdated: string;
   members: string[];
+  access_level: 'view' | 'comment';
+  can_view_files: boolean;
 }
 
 export interface ClientPortalInvoice {
@@ -266,6 +268,7 @@ export interface ClientPortalClient {
   country?: string;
   contact_person?: string;
   assigned_projects_count: number;
+  team_members_count?: number;
   projects: ClientPortalProject[];
   team_members: ClientPortalTeamMember[];
   status: 'active' | 'inactive' | 'pending';
@@ -290,6 +293,22 @@ export interface ClientPortalTeamMember {
   avatar?: string;
   status: 'active' | 'inactive';
   accepted_at?: string | null;
+  access_level: 'view' | 'comment';
+}
+
+export interface ClientPortalTaskComment {
+  id: string;
+  sender_type: 'client' | 'staff';
+  sender_name: string;
+  comment: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientPortalTaskCommentsResponse {
+  done: boolean;
+  body: { comments: ClientPortalTaskComment[]; total: number };
+  message?: string | null;
 }
 
 export interface CreateClientRequest {
@@ -328,6 +347,7 @@ export interface InviteTeamMemberRequest {
   email: string;
   name: string;
   role?: string;
+  access_level?: 'view' | 'comment';
 }
 
 export interface ClientProjectsResponse {
@@ -498,6 +518,7 @@ export const clientPortalApi = createApi({
     'Settings',
     'Profile',
     'Notifications',
+    'ClientTaskComments',
   ],
   endpoints: builder => ({
     // Dashboard
@@ -1150,11 +1171,23 @@ export const clientPortalApi = createApi({
       providesTags: (result, error, { clientId }) => [{ type: 'ClientProjects', id: clientId }],
     }),
 
-    assignProjectToClient: builder.mutation<void, { clientId: string; projectId: string }>({
-      query: ({ clientId, projectId }) => ({
+    assignProjectToClient: builder.mutation<
+      void,
+      {
+        clientId: string;
+        projectId: string;
+        accessLevel: 'view' | 'comment';
+        canViewFiles: boolean;
+      }
+    >({
+      query: ({ clientId, projectId, accessLevel, canViewFiles }) => ({
         url: `/clients/portal/clients/${clientId}/projects`,
         method: 'POST',
-        body: { project_id: projectId },
+        body: {
+          project_id: projectId,
+          access_level: accessLevel,
+          can_view_files: canViewFiles,
+        },
       }),
       invalidatesTags: (result, error, { clientId }) => [{ type: 'ClientProjects', id: clientId }],
     }),
@@ -1165,6 +1198,31 @@ export const clientPortalApi = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, { clientId }) => [{ type: 'ClientProjects', id: clientId }],
+    }),
+
+    getClientPortalTaskComments: builder.query<
+      ClientPortalTaskCommentsResponse,
+      { projectId: string; taskId: string }
+    >({
+      query: ({ projectId, taskId }) =>
+        `/clients/portal/projects/${projectId}/tasks/${taskId}/comments`,
+      providesTags: (_result, _error, { taskId }) => [
+        { type: 'ClientTaskComments', id: taskId },
+      ],
+    }),
+
+    addClientPortalTaskComment: builder.mutation<
+      ClientPortalTaskComment,
+      { projectId: string; taskId: string; comment: string }
+    >({
+      query: ({ projectId, taskId, comment }) => ({
+        url: `/clients/portal/projects/${projectId}/tasks/${taskId}/comments`,
+        method: 'POST',
+        body: { comment },
+      }),
+      invalidatesTags: (_result, _error, { taskId }) => [
+        { type: 'ClientTaskComments', id: taskId },
+      ],
     }),
 
     // Client Team Management
@@ -1519,6 +1577,8 @@ export const {
   useGetClientProjectsQuery,
   useAssignProjectToClientMutation,
   useRemoveProjectFromClientMutation,
+  useGetClientPortalTaskCommentsQuery,
+  useAddClientPortalTaskCommentMutation,
 
   // Client Team Management
   useGetClientTeamQuery,

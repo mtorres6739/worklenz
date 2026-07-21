@@ -1,14 +1,52 @@
-import { Col, Flex, Layout } from '@/shared/antd-imports';
-import React, { useState } from 'react';
+import { Button, Col, Flex, Layout, Typography } from '@/shared/antd-imports';
+import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAppSelector } from '../hooks/useAppSelector';
 import { useDebouncedMediaQuery } from '@/hooks/useDebouncedMediaQuery';
 import ClientViewSiderMenu from '../pages/client-view/sidebar/client-view-sider-menu';
-import ClientViewLogo from '../assets/images/client-view-logo.png';
 import { themeWiseColor } from '../utils/themeWiseColor';
+import { LogoutOutlined } from '@ant-design/icons';
+import {
+  portalClientApi,
+  useGetSessionQuery,
+  useLogoutMutation,
+} from '@/api/client-portal/portal-client.api';
+import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
+import { SOCKET_CONFIG } from '@/socket/config';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
 
 const ClientViewLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { data: session } = useGetSessionQuery();
+  const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
+
+  useEffect(() => {
+    if (!session?.authenticated) return;
+    const socket = io(SOCKET_CONFIG.url, {
+      ...SOCKET_CONFIG.options,
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+    });
+    socket.on(
+      'portal:task-comment',
+      (event: { projectId: string; taskId: string }) => {
+        dispatch(
+          portalClientApi.util.invalidateTags([
+            { type: 'PortalComments', id: event.taskId },
+            { type: 'PortalTasks', id: event.projectId },
+            'PortalDashboard',
+          ])
+        );
+      }
+    );
+    return () => {
+      socket.disconnect();
+    };
+  }, [dispatch, session?.authenticated]);
 
   // theme details from theme slice
   const themeMode = useAppSelector(state => state.themeReducer.mode);
@@ -34,11 +72,25 @@ const ClientViewLayout = () => {
           borderBottom: themeMode === 'dark' ? '1px solid #303030' : '',
         }}
       >
-        <img
-          src={ClientViewLogo}
-          alt="client-view-logo"
-          style={{ width: 120, height: 40, marginInlineStart: 24 }}
-        />
+        {session?.branding.logo_url ? (
+          <img src={session.branding.logo_url} alt={session.branding.display_name} style={{ maxWidth: 150, maxHeight: 38, marginInlineStart: 24 }} />
+        ) : (
+          <Typography.Text strong style={{ marginInlineStart: 24, fontSize: 16 }}>
+            {session?.branding.display_name || 'SDM Client Projects'}
+          </Typography.Text>
+        )}
+        <Button
+          type="text"
+          icon={<LogoutOutlined />}
+          loading={isLoggingOut}
+          style={{ marginInlineStart: 'auto', marginInlineEnd: 18 }}
+          onClick={async () => {
+            await logout().unwrap().catch(() => undefined);
+            navigate('/portal/login', { replace: true });
+          }}
+        >
+          Sign out
+        </Button>
       </Layout.Header>
 
       <Layout.Content>

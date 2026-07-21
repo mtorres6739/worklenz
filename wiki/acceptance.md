@@ -18,6 +18,9 @@
 - Anonymous and unauthorized object requests fail; authorized view/download URLs expire.
 - Staff, Client A, and Client B fixtures prove project, task, report, search, file, and
   Socket.IO boundaries.
+- Portal sessions use only the separate client cookie, cross-audience bearer/handshake
+  tokens fail, project grants allow one client only, and client-visible comments never
+  appear in internal task comments.
 
 ## Functional and operational
 
@@ -76,3 +79,11 @@ Still gated after the internal launch:
 - Staff, Client A, and Client B isolation fixtures across API, report, search, file,
   and Socket.IO paths.
 - Client-facing rollout, the Kinetic Projects link, and all-client onboarding.
+
+## Wave 4 Client Portal gate
+
+The collaboration code and additive schema are implemented behind
+`FEATURE_CLIENT_PORTAL=false`. The flag must remain false in production until the
+encrypted restore-clone rehearsal and live Client A/Client B API, file, comment, and
+Socket.IO isolation checks pass. Wave 5 services, requests, invoices, payments, and
+chat remain excluded even after the Wave 4 flag is enabled.

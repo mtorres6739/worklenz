@@ -1,98 +1,53 @@
-import { Card, Col, Flex, Row, Statistic, Typography } from '@/shared/antd-imports';
+import { Alert, Card, Col, Flex, Row, Spin, Statistic, Typography } from '@/shared/antd-imports';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { useAppSelector } from '../../../hooks/useAppSelector';
-import {
-  FileTextOutlined,
-  ProjectOutlined,
-  MessageOutlined,
-  DollarOutlined,
-} from '@ant-design/icons';
+import { CheckCircleOutlined, CommentOutlined, ProjectOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { useGetDashboardQuery, useGetSessionQuery } from '@/api/client-portal/portal-client.api';
 
 const ClientViewDashboard = () => {
-  const { t } = useTranslation('client-view-dashboard');
-
-  // Get client data from Redux (replace with real API calls)
-  const clientStats = useAppSelector(
-    state =>
-      state.clientViewReducer.dashboardReducer?.stats || {
-        totalRequests: 0,
-        pendingRequests: 0,
-        totalProjects: 0,
-        activeProjects: 0,
-        totalInvoices: 0,
-        unpaidInvoices: 0,
-        unreadMessages: 0,
-      }
-  );
+  const { data: session } = useGetSessionQuery();
+  const { data, isLoading, error } = useGetDashboardQuery();
+  const stats = data?.stats || {};
 
   return (
     <Flex vertical gap={24} style={{ width: '100%' }}>
-      <Typography.Title level={4} style={{ marginBlock: 0 }}>
-        {t('title')}
-      </Typography.Title>
+      <div>
+        <Typography.Title level={3} style={{ margin: 0 }}>
+          Welcome, {session?.user.name || 'Client'}
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Only projects explicitly shared with your company appear here.
+        </Typography.Text>
+      </div>
 
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title={t('totalRequests')}
-              value={clientStats.totalRequests}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#3f8600' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title={t('pendingRequests')}
-              value={clientStats.pendingRequests}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#cf1322' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title={t('activeProjects')}
-              value={clientStats.activeProjects}
-              prefix={<ProjectOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title={t('unpaidInvoices')}
-              value={clientStats.unpaidInvoices}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {error && <Alert type="error" showIcon message="The portal dashboard could not be loaded." />}
+      <Spin spinning={isLoading}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} lg={6}>
+            <Card><Statistic title="Shared projects" value={stats.totalProjects || 0} prefix={<ProjectOutlined />} /></Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card><Statistic title="Active projects" value={stats.activeProjects || 0} prefix={<ProjectOutlined />} valueStyle={{ color: '#1677ff' }} /></Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card><Statistic title="Completed tasks" value={stats.completedTasks || 0} suffix={`/ ${stats.totalTasks || 0}`} prefix={<CheckCircleOutlined />} valueStyle={{ color: '#389e0d' }} /></Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card><Statistic title="Unread comments" value={stats.unreadComments || 0} prefix={<CommentOutlined />} valueStyle={{ color: '#d46b08' }} /></Card>
+          </Col>
+        </Row>
+      </Spin>
 
-      {/* Recent Activity */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card title={t('recentRequests')} style={{ height: 400 }}>
-            <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <Typography.Text type="secondary">{t('noRecentRequests')}</Typography.Text>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card title={t('recentMessages')} style={{ height: 400 }}>
-            <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <Typography.Text type="secondary">{t('noRecentMessages')}</Typography.Text>
-            </div>
-          </Card>
-        </Col>
-      </Row>
+      <Card>
+        <Flex align="flex-start" gap={12}>
+          <UnorderedListOutlined style={{ marginTop: 4, color: '#1677ff' }} />
+          <div>
+            <Typography.Text strong>Collaboration access</Typography.Text>
+            <Typography.Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
+              Project visibility, comments, and files are controlled separately by SDM. Contact your project manager if something expected is missing.
+            </Typography.Paragraph>
+          </div>
+        </Flex>
+      </Card>
     </Flex>
   );
 };

@@ -40,6 +40,11 @@ describe("self-hosted capability profile", () => {
     expect(profile.capabilities.slack).toBe(true);
   });
 
+  it("exposes the client portal only when the collaboration wave is enabled", () => {
+    process.env.FEATURE_CLIENT_PORTAL = "true";
+    expect(getSelfHostedCapabilities().capabilities.clientPortal).toBe(true);
+  });
+
   it("caps upload configuration at one GiB", () => {
     process.env.MAX_UPLOAD_BYTES = String(5 * 1024 * 1024 * 1024);
     expect(getSelfHostedCapabilities().limits.uploadBytes).toBe(

@@ -103,6 +103,7 @@ import clientViewReducer from '../features/client-view';
 
 // Client Portal API
 import { clientPortalApi } from '@/api/client-portal/client-portal-api';
+import { portalClientApi } from '@/api/client-portal/portal-client.api';
 
 // Schedule API
 import { scheduleApi } from '@/api/schedule/scheduleApi';
@@ -126,6 +127,7 @@ export const store = configureStore({
       personalOverviewApi.middleware,
       projectsApi.middleware,
       clientPortalApi.middleware,
+      portalClientApi.middleware,
       userActivityApiService.middleware,
       roadmapApi.middleware,
       projectWorkloadApi.middleware,
@@ -145,6 +147,7 @@ export const store = configureStore({
     [personalOverviewApi.reducerPath]: personalOverviewApi.reducer,
     [projectsApi.reducerPath]: projectsApi.reducer,
     [clientPortalApi.reducerPath]: clientPortalApi.reducer,
+    [portalClientApi.reducerPath]: portalClientApi.reducer,
     [roadmapApi.reducerPath]: roadmapApi.reducer,
     [projectWorkloadApi.reducerPath]: projectWorkloadApi.reducer,
     [scheduleApi.reducerPath]: scheduleApi.reducer,

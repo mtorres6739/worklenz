@@ -34,6 +34,7 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - [SDM self-hosted capabilities](self-hosted-capabilities.md)
 - [Project finance](project-finance.md)
 - [Identity, branding, and Slack](identity-branding-slack.md)
+- [Client Portal collaboration](client-portal-collaboration.md)
 - [Acceptance and rollout gates](acceptance.md)
 
 ## Current rollout rule

@@ -29,6 +29,7 @@ import { ITaskViewModel } from '@/types/tasks/task.types';
 import TaskDrawerCustomFields from './details/task-drawer-custom-fields/task-drawer-custom-fields';
 import { hasDrawerSupportedCustomFields } from '@/utils/task-custom-columns';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
+import ClientPortalComments from './comments/client-portal-comments';
 
 interface TaskDrawerInfoTabProps {
   t: TFunction;
@@ -37,7 +38,7 @@ interface TaskDrawerInfoTabProps {
 
 const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
   const dispatch = useAppDispatch();
-  const { selfHosted } = useBusinessFeatures();
+  const { selfHosted, hasCapability } = useBusinessFeatures();
   const attachmentSizeLimitBytes = selfHosted.limits.uploadBytes;
   const attachmentSizeLimitMb = Math.floor(attachmentSizeLimitBytes / 1024 / 1024);
 
@@ -74,6 +75,7 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
     'dependencies',
     'attachments',
     'comments',
+    'clientPortalComments',
   ];
   const [collapseActiveKeys, setCollapseActiveKeys] = useState<string[]>(defaultCollapseKeys);
 
@@ -270,6 +272,17 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
       className: 'custom-task-drawer-info-collapse',
       children: <TaskComments taskId={selectedTaskId || ''} t={t} />,
     },
+    ...(hasCapability('clientPortal') && projectId && selectedTaskId
+      ? [
+          {
+            key: 'clientPortalComments',
+            label: <Typography.Text strong>Client portal messages</Typography.Text>,
+            style: panelStyle,
+            className: 'custom-task-drawer-info-collapse',
+            children: <ClientPortalComments projectId={projectId} taskId={selectedTaskId} />,
+          },
+        ]
+      : []),
   ];
 
   const infoItems =

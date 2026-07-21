@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouteObject, useLocation } from 'react-router-dom';
 import { lazy, Suspense, memo } from 'react';
 import rootRoutes from './root-routes';
 import authRoutes from './auth-routes';
@@ -7,6 +7,7 @@ import notFoundRoute from './not-found-route';
 import accountSetupRoute from './account-setup-routes';
 import reportingRoutes from './reporting-routes';
 import clientPortalRoutes from './client-portal-routes';
+import portalAuthRoutes from './portal-auth-routes';
 import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
@@ -33,6 +34,7 @@ const withCodeSplitting = (Component: React.LazyExoticComponent<React.ComponentT
 // Memoized guard components with defensive programming
 import { useAuthStatus } from '@/hooks/useAuthStatus';
 import clientViewRoutes from './client-view-routes';
+import { useGetSessionQuery } from '@/api/client-portal/portal-client.api';
 
 export const AuthGuard = memo(({ children }: GuardProps) => {
   const { isAuthenticated, location } = useAuthStatus();
@@ -95,6 +97,19 @@ export const AuthAndSetupGuard = memo(({ children }: GuardProps) => {
 
 AuthAndSetupGuard.displayName = 'AuthAndSetupGuard';
 
+export const ClientPortalGuard = memo(({ children }: GuardProps) => {
+  const location = useLocation();
+  const { data, isLoading, isFetching, error } = useGetSessionQuery();
+
+  if (isLoading || isFetching) return <SuspenseFallback />;
+  if (error || !data?.authenticated) {
+    return <Navigate to="/portal/login" state={{ from: location }} replace />;
+  }
+  return <>{children}</>;
+});
+
+ClientPortalGuard.displayName = 'ClientPortalGuard';
+
 // Optimized route wrapping function with Suspense boundaries
 const wrapRoutes = (
   routes: RouteObject[],
@@ -130,6 +145,7 @@ const protectedMainRoutes = wrapRoutes(mainRoutes, AuthAndSetupGuard);
 const adminRoutes = wrapRoutes(reportingRoutes, AdminGuard);
 const adminclientPortalRoutes = wrapRoutes(clientPortalRoutes, AdminGuard);
 const setupRoutes = wrapRoutes([accountSetupRoute], AuthGuard);
+const protectedClientViewRoutes = wrapRoutes(clientViewRoutes, ClientPortalGuard);
 
 // Create optimized router with future flags for better performance
 const router = createBrowserRouter(
@@ -154,6 +170,8 @@ const router = createBrowserRouter(
         ...setupRoutes,
       ],
     },
+    ...protectedClientViewRoutes,
+    ...portalAuthRoutes,
     ...publicRoutes,
   ],
   {

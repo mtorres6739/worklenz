@@ -112,6 +112,14 @@ The `2026072000067_task_member_sort_order` compatibility migration adds the assi
 group sort column already used by legacy and versioned template imports. Fresh-install
 CI selects it from a real task so schema drift cannot break imports only in production.
 
+The fork-owned `2026072100200_client_portal_collaboration` migration adds the separate
+client identity/session audience and normalized portal collaboration tables. Composite
+foreign keys bind sessions, memberships, comments, clients, projects, and teams to the
+same tenant. A unique project grant enforces one client company per project. Deploy this
+migration with `FEATURE_CLIENT_PORTAL=false`, rehearse it twice against an encrypted
+restore clone, then enable the flag only after the Client A/Client B isolation gate in
+[Client Portal collaboration](client-portal-collaboration.md).
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at

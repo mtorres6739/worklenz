@@ -92,6 +92,29 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072100200_client_portal_collaboration.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.portal_client_users') IS NOT NULL
+         AND to_regclass('public.portal_client_memberships') IS NOT NULL
+         AND to_regclass('public.portal_sessions') IS NOT NULL
+         AND to_regclass('public.portal_project_access') IS NOT NULL
+         AND to_regclass('public.portal_task_comments') IS NOT NULL
+         AND to_regclass('public.portal_audit_log') IS NOT NULL;" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT COUNT(*) = 1 FROM pg_constraint
+       WHERE conrelid = 'portal_project_access'::regclass
+         AND conname = 'portal_project_access_project_unique';" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT COUNT(*) = 7 FROM pg_constraint WHERE conname IN (
+       'portal_session_membership_actor_fk',
+       'portal_comment_membership_scope_fk',
+       'portal_comment_client_scope_fk',
+       'portal_comment_project_scope_fk',
+       'portal_comment_task_scope_fk',
+       'portal_project_access_client_scope_fk',
+       'portal_project_access_project_scope_fk'
+     );" | grep -qx t
+  ;;
 2026072100100_wave3_identity_branding_slack.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.organization_branding') IS NOT NULL

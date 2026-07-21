@@ -14,7 +14,6 @@ import {
   UserOutlined,
   TeamOutlined,
   ProjectOutlined,
-  ShareAltOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
@@ -25,10 +24,9 @@ import AddClientDrawer from '@/components/client-portal/AddClientDrawer';
 import ClientDetailsDrawer from '@/components/client-portal/ClientDetailsDrawer';
 import ClientTeamsDrawer from '@/components/client-portal/ClientTeamsDrawer';
 import ClientSettingsDrawer from '@/components/client-portal/ClientSettingsDrawer';
-import InviteLinkModal from '@/components/client-portal/InviteLinkModal';
 import { useResponsive } from '@/hooks/useResponsive';
 import { createPortal } from 'react-dom';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import {
   MixpanelEvents,
@@ -44,9 +42,6 @@ const ClientPortalClients = () => {
   const { isMobile, isTablet, isDesktop } = useResponsive();
   const { trackMixpanelEvent } = useMixpanelTracking();
 
-  // State for invite modal
-  const [showInviteModal, setShowInviteModal] = React.useState(false);
-
   // RTK Query hook for clients data
   const {
     data: clientsData,
@@ -56,10 +51,6 @@ const ClientPortalClients = () => {
     page: 1,
     limit: 1000, // Get all clients for stats
   });
-
-  const handleCloseInviteModal = () => {
-    setShowInviteModal(false);
-  };
 
   // Calculate statistics - properly access the nested structure
   const totalClients = clientsData?.body?.total || 0;
@@ -77,7 +68,7 @@ const ClientPortalClients = () => {
     ) || 0;
   const totalTeamMembers =
     clientsData?.body?.clients?.reduce(
-      (sum: number, client: ClientPortalClient) => sum + (client.team_members?.length || 0),
+      (sum: number, client: ClientPortalClient) => sum + (client.team_members_count || 0),
       0
     ) || 0;
 
@@ -105,19 +96,6 @@ const ClientPortalClients = () => {
 
     trackMixpanelEvent(MixpanelEvents.CLIENT_PORTAL_CLIENT_CREATED, actionProps);
     dispatch(toggleAddClientDrawer());
-  };
-
-  const handleShowInviteModalWithTracking = () => {
-    const actionProps: ClientPortalActionEventProps = {
-      action_type: 'view',
-      item_type: 'client',
-      page: 'clients',
-      section: 'client_portal',
-      source: 'invite_button',
-    };
-
-    trackMixpanelEvent(MixpanelEvents.CLIENT_PORTAL_CLIENT_LINK_COPIED, actionProps);
-    setShowInviteModal(true);
   };
 
   return (
@@ -154,13 +132,6 @@ const ClientPortalClients = () => {
             </Typography.Text>
           </div>
           <Space wrap>
-            <Button
-              icon={<ShareAltOutlined />}
-              onClick={handleShowInviteModalWithTracking}
-              size={isMobile ? 'small' : 'middle'}
-            >
-              {t('inviteButton') || 'Invite'}
-            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -253,9 +224,6 @@ const ClientPortalClients = () => {
       {createPortal(<ClientDetailsDrawer />, document.body)}
       {createPortal(<ClientTeamsDrawer />, document.body)}
       {createPortal(<ClientSettingsDrawer />, document.body)}
-
-      {/* Invite Link Modal */}
-      <InviteLinkModal visible={showInviteModal} onClose={handleCloseInviteModal} />
     </div>
   );
 };

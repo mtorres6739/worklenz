@@ -1,25 +1,22 @@
-import { Flex, Typography } from '@/shared/antd-imports';
+import { Alert, Empty, Flex, Spin, Typography } from '@/shared/antd-imports';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import ProjectsTable from './projects-table';
-import { useAppSelector } from '../../../hooks/useAppSelector';
+import { useGetProjectsQuery } from '@/api/client-portal/portal-client.api';
 
 const ClientViewProjects = () => {
-  // localization
-  const { t } = useTranslation('client-view/client-view-projects');
-
-  // get project list from client view reducer project reducer
-  const projectList = useAppSelector(state => state.clientViewReducer.projectsReducer.projectsList);
+  const { data, isLoading, error } = useGetProjectsQuery();
+  const projects = data?.projects || [];
 
   return (
     <Flex vertical gap={24} style={{ width: '100%' }}>
-      <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-        <Typography.Title level={4} style={{ marginBlock: 0 }}>
-          {t('title', { items: projectList.length })}
-        </Typography.Title>
-      </Flex>
-
-      <ProjectsTable />
+      <div>
+        <Typography.Title level={3} style={{ margin: 0 }}>Projects</Typography.Title>
+        <Typography.Text type="secondary">{projects.length} project{projects.length === 1 ? '' : 's'} shared with your company</Typography.Text>
+      </div>
+      {error && <Alert type="error" showIcon message="Projects could not be loaded." />}
+      <Spin spinning={isLoading}>
+        {projects.length ? <ProjectsTable projects={projects} /> : <Empty description="No projects have been shared yet." />}
+      </Spin>
     </Flex>
   );
 };

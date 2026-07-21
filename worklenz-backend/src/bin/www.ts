@@ -16,6 +16,10 @@ import {startRecurringTasksJob} from "../cron_jobs/recurring-tasks";
 import FileConstants from "../shared/file-constants";
 import {initRedis} from "../redis/client";
 import DbTaskStatusChangeListener from "../pg_notify_listeners/db-task-status-changed";
+import {
+  getPortalActorByRawToken,
+  portalTokenFromCookieHeader,
+} from "../services/client-portal-session.service";
 
 function normalizePort(val?: string) {
   const p = parseInt(val || "0", 10);
@@ -42,18 +46,24 @@ const wrap = (middleware: any) => (socket: any, next: any) => middleware(socket.
 
 io.use(wrap(sessionMiddleware));
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   // Check for regular user authentication
   const userId = getLoggedInUserIdFromSocket(socket);
   if (userId) {
     return next();
   }
   
-  // Check for client portal authentication via handshake auth
-  const auth = socket.handshake.auth;
-  if (auth && auth.token && auth.type === 'client') {
-    // Client portal authentication will be handled in on_client_connect
-    return next();
+  // Client identities use a separate secure cookie and database audience. Never
+  // accept bearer tokens supplied by JavaScript in the Socket.IO handshake.
+  if (process.env.FEATURE_CLIENT_PORTAL === "true") {
+    const rawToken = portalTokenFromCookieHeader(socket.handshake.headers.cookie);
+    if (rawToken) {
+      const actor = await getPortalActorByRawToken(rawToken);
+      if (actor) {
+        socket.data.portalActor = actor;
+        return next();
+      }
+    }
   }
   
   return next(new Error("401 unauthorized"));

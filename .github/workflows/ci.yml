@@ -78,17 +78,34 @@ jobs:
           psql -Atc "SELECT to_regclass('public.integration_audit_log') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.slack_workspaces') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.slack_request_receipts') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_client_users') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_client_memberships') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_sessions') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_project_access') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_task_comments') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_audit_log') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 1 FROM pg_constraint WHERE conrelid = 'portal_project_access'::regclass AND conname = 'portal_project_access_project_unique'" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 7 FROM pg_constraint WHERE conname IN ('portal_session_membership_actor_fk','portal_comment_membership_scope_fk','portal_comment_client_scope_fk','portal_comment_project_scope_fk','portal_comment_task_scope_fk','portal_project_access_client_scope_fk','portal_project_access_project_scope_fk')" | grep -qx t
           psql -Atc "SELECT to_regprocedure('public.can_update_task(uuid,uuid)') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'task_templates' AND column_name = 'locked_at')" | grep -qx t
           psql -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
           SELECT register_user('{"name":"CI Owner","team_name":"CI Workspace","email":"ci-owner@example.test","password":"test-only-hash","timezone":"UTC"}'::json);
           DO $$
+          <<ci_fixture>>
           DECLARE
             owner_id UUID;
             team_id UUID;
             created_project_id UUID;
             created_task_id UUID;
+            client_a_id UUID;
+            client_b_id UUID;
+            project_b_id UUID;
+            portal_user_a_id UUID;
+            portal_user_b_id UUID;
+            membership_a_id UUID;
+            membership_b_id UUID;
+            duplicate_project_blocked BOOLEAN := FALSE;
           BEGIN
             IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
               RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
@@ -203,6 +220,79 @@ jobs:
               WHERE twl.task_id = created_task_id
             ) THEN
               RAISE EXCEPTION 'Finance work-log rate snapshot was not captured';
+            END IF;
+
+            INSERT INTO clients (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+            VALUES ('CI Client A', team_id, 'client-a@example.test', 'Client A', 'Client A User', 'active', TRUE)
+            RETURNING id INTO client_a_id;
+            INSERT INTO clients (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+            VALUES ('CI Client B', team_id, 'client-b@example.test', 'Client B', 'Client B User', 'active', TRUE)
+            RETURNING id INTO client_b_id;
+
+            SELECT (create_project(json_build_object(
+              'name', 'CI Client B Project',
+              'key', 'CIB',
+              'color_code', '#1677ff',
+              'status_id', (SELECT id FROM sys_project_statuses WHERE is_default IS TRUE LIMIT 1),
+              'team_id', team_id,
+              'user_id', owner_id,
+              'project_created_log', '@user created the project',
+              'project_member_added_log', '@user joined the project'
+            )) ->> 'id')::UUID INTO project_b_id;
+
+            INSERT INTO portal_client_users (email, name, password_hash)
+            VALUES ('client-a@example.test', 'Client A User', 'test-only-hash')
+            RETURNING id INTO portal_user_a_id;
+            INSERT INTO portal_client_users (email, name, password_hash)
+            VALUES ('client-b@example.test', 'Client B User', 'test-only-hash')
+            RETURNING id INTO portal_user_b_id;
+            INSERT INTO portal_client_memberships
+              (client_user_id, team_id, client_id, role, access_level, invited_by, accepted_at)
+            VALUES (portal_user_a_id, team_id, client_a_id, 'member', 'comment', owner_id, CURRENT_TIMESTAMP)
+            RETURNING id INTO membership_a_id;
+            INSERT INTO portal_client_memberships
+              (client_user_id, team_id, client_id, role, access_level, invited_by, accepted_at)
+            VALUES (portal_user_b_id, team_id, client_b_id, 'member', 'view', owner_id, CURRENT_TIMESTAMP)
+            RETURNING id INTO membership_b_id;
+            INSERT INTO portal_project_access
+              (team_id, client_id, project_id, access_level, can_view_files, created_by)
+            VALUES
+              (team_id, client_a_id, created_project_id, 'comment', TRUE, owner_id),
+              (team_id, client_b_id, project_b_id, 'view', FALSE, owner_id);
+            UPDATE projects SET client_portal_visible = TRUE WHERE id IN (created_project_id, project_b_id);
+
+            INSERT INTO portal_task_comments
+              (team_id, client_id, project_id, task_id, membership_id, sender_type, sender_name, comment)
+            VALUES
+              (team_id, client_a_id, created_project_id, created_task_id, membership_a_id,
+               'client', 'Client A User', 'Client A private comment');
+
+            IF (SELECT COUNT(*) FROM portal_project_access ppa
+                 WHERE ppa.team_id = ci_fixture.team_id
+                   AND ppa.client_id = ci_fixture.client_a_id) <> 1
+               OR (SELECT COUNT(*) FROM portal_project_access ppa
+                    WHERE ppa.team_id = ci_fixture.team_id
+                      AND ppa.client_id = ci_fixture.client_b_id) <> 1 THEN
+              RAISE EXCEPTION 'Client project scope fixture is invalid';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM portal_task_comments ptc
+               WHERE ptc.team_id = ci_fixture.team_id
+                 AND ptc.client_id = ci_fixture.client_b_id
+                 AND ptc.project_id = ci_fixture.created_project_id
+            ) THEN
+              RAISE EXCEPTION 'Client B could read Client A comments';
+            END IF;
+
+            BEGIN
+              INSERT INTO portal_project_access
+                (team_id, client_id, project_id, access_level, can_view_files, created_by)
+              VALUES (team_id, client_b_id, created_project_id, 'view', FALSE, owner_id);
+            EXCEPTION WHEN unique_violation THEN
+              duplicate_project_blocked := TRUE;
+            END;
+            IF NOT duplicate_project_blocked THEN
+              RAISE EXCEPTION 'One project was assignable to multiple clients';
             END IF;
 
             PERFORM log_project_activity_i18n(

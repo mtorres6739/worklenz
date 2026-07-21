@@ -13,7 +13,6 @@ import {
   Spin,
   Avatar,
   Tag,
-  List,
   Empty,
 } from '@/shared/antd-imports';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -38,7 +37,7 @@ import {
   useResendTeamInvitationMutation,
   useGenerateClientInvitationLinkMutation,
 } from '../../api/client-portal/client-portal-api';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const { Option } = Select;
 
@@ -53,9 +52,7 @@ const ClientTeamsDrawer = () => {
 
   // Local state
   const [inviteForm] = Form.useForm();
-  const [isInviting, setIsInviting] = useState(false);
   const [invitationLink, setInvitationLink] = useState<string>('');
-  const [isLoadingInvitationLink, setIsLoadingInvitationLink] = useState(false);
 
   // RTK Query hooks - only load data when drawer is open
   const { data: clientDetails, isLoading: isLoadingClient } = useGetClientDetailsQuery(
@@ -86,48 +83,24 @@ const ClientTeamsDrawer = () => {
   const [generateInvitationLink, { isLoading: isGeneratingLink }] =
     useGenerateClientInvitationLinkMutation();
 
-  // Generate invitation link when drawer opens or client changes
   useEffect(() => {
-    const fetchInvitationLink = async () => {
-      if (!selectedClientId || !isClientTeamsDrawerOpen) {
-        setInvitationLink('');
-        return;
-      }
+    setInvitationLink('');
+  }, [isClientTeamsDrawerOpen, selectedClientId]);
 
-      try {
-        setIsLoadingInvitationLink(true);
-        const result = await generateInvitationLink({ clientId: selectedClientId }).unwrap();
-
-        // Handle existing user case - show portal URL instead of invitation link
-        if (result.body?.isExistingUser && result.body?.portalUrl) {
-          setInvitationLink(result.body.portalUrl);
-        } else if (result.body?.invitationLink) {
-          setInvitationLink(result.body.invitationLink);
-        } else {
-          setInvitationLink('');
-          message.error(t('inviteLinkGeneratedError') || 'Failed to generate invitation link');
-        }
-      } catch (error: any) {
-        console.error('Failed to generate invitation link:', error);
-        setInvitationLink('');
-        // Don't show error if it's just missing email - that's handled elsewhere
-        const errorData =
-          error?.data?.body || error?.data || error?.response?.data?.body || error?.response?.data;
-        const errorCode = errorData?.errorCode;
-        if (errorCode !== 'EMAIL_REQUIRED') {
-          message.error(
-            error?.data?.message ||
-              t('inviteLinkGeneratedError') ||
-              'Failed to generate invitation link'
-          );
-        }
-      } finally {
-        setIsLoadingInvitationLink(false);
-      }
-    };
-
-    fetchInvitationLink();
-  }, [selectedClientId, isClientTeamsDrawerOpen, generateInvitationLink, t]);
+  const handleGenerateInvitationLink = async () => {
+    if (!selectedClientId) return;
+    try {
+      const result = await generateInvitationLink({ clientId: selectedClientId }).unwrap();
+      if (!result.body?.invitationLink) throw new Error('Invitation link missing');
+      setInvitationLink(result.body.invitationLink);
+      message.success(t('inviteLinkGeneratedSuccess') || 'New invitation link generated and emailed');
+    } catch (error: any) {
+      setInvitationLink('');
+      message.error(
+        error?.data?.message || t('inviteLinkGeneratedError') || 'Failed to generate invitation link'
+      );
+    }
+  };
 
   // function to copy link to clipboard
   const copyLinkToClipboard = () => {
@@ -144,13 +117,13 @@ const ClientTeamsDrawer = () => {
     if (!selectedClientId) return;
 
     try {
-      setIsInviting(true);
       await inviteTeamMember({
         clientId: selectedClientId,
         memberData: {
           email: values.email,
           name: values.name,
           role: values.role,
+          access_level: values.access_level,
         },
       }).unwrap();
 
@@ -162,7 +135,7 @@ const ClientTeamsDrawer = () => {
         error?.data?.message || t('inviteErrorMessage') || 'Failed to invite team member'
       );
     } finally {
-      setIsInviting(false);
+      // Mutation state drives the submit button.
     }
   };
 
@@ -231,6 +204,14 @@ const ClientTeamsDrawer = () => {
         <Tag color={record.status === 'active' ? 'green' : 'orange'}>{record.status}</Tag>
       ),
       width: 100,
+    },
+    {
+      key: 'access',
+      title: 'Access',
+      render: (_, record: any) => (
+        <Tag>{record.access_level === 'comment' ? 'Can comment' : 'Read only'}</Tag>
+      ),
+      width: 120,
     },
     {
       key: 'actionBtns',
@@ -309,23 +290,20 @@ const ClientTeamsDrawer = () => {
             </Typography.Text>
             <Flex gap={8} align="center">
               <Input
-                value={
-                  invitationLink
-                    ? invitationLink
-                    : isLoadingInvitationLink || isGeneratingLink
-                      ? t('loadingText') || 'Loading...'
-                      : ''
-                }
+                value={invitationLink}
                 readOnly
                 style={{ flex: 1 }}
-                disabled={isLoadingInvitationLink || isGeneratingLink || !invitationLink}
+                placeholder="Generate a one-time invitation link"
+                disabled={isGeneratingLink || !invitationLink}
               />
+              <Button onClick={handleGenerateInvitationLink} loading={isGeneratingLink}>
+                Generate
+              </Button>
               <Button
                 type="default"
                 icon={<CopyOutlined />}
                 onClick={copyLinkToClipboard}
-                disabled={!invitationLink || isLoadingInvitationLink || isGeneratingLink}
-                loading={isLoadingInvitationLink || isGeneratingLink}
+                disabled={!invitationLink || isGeneratingLink}
               >
                 {t('copyButton') || 'Copy'}
               </Button>
@@ -376,7 +354,18 @@ const ClientTeamsDrawer = () => {
                   <Select placeholder={t('rolePlaceholder') || 'Select role'} size="middle">
                     <Option value="admin">{t('roleAdmin') || 'Admin'}</Option>
                     <Option value="member">{t('roleMember') || 'Member'}</Option>
-                    <Option value="viewer">{t('roleViewer') || 'Viewer'}</Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item
+                  name="access_level"
+                  label="Access"
+                  initialValue="view"
+                  style={{ width: 150 }}
+                >
+                  <Select size="middle">
+                    <Option value="view">Read only</Option>
+                    <Option value="comment">Can comment</Option>
                   </Select>
                 </Form.Item>
 

@@ -4,6 +4,10 @@ import {SocketEvents} from "../events";
 import db from "../../config/db";
 import {getColor} from "../../shared/utils";
 import TasksControllerV2 from "../../controllers/tasks-controller-v2";
+import {
+  logUnauthorizedSocketAccess,
+  verifyProjectAccessSocket,
+} from "../authorization";
 
 export async function on_join_project_room(_io: Server, socket: Socket, data: { id: string | null; type: string; }) {
   const payload = {...data};
@@ -13,6 +17,11 @@ export async function on_join_project_room(_io: Server, socket: Socket, data: { 
 
   try {
     if (payload.type === "join") {
+      const allowed = await verifyProjectAccessSocket(socket, payload.id);
+      if (!allowed) {
+        logUnauthorizedSocketAccess(socket, "join-project-room", "project", payload.id);
+        return;
+      }
       await socket.join(payload.id);
     } else {
       await socket.leave(payload.id);

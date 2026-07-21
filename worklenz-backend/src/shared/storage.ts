@@ -606,6 +606,7 @@ export async function createPresignedViewUrl(
         startsOn: new Date(),
         expiresOn: new Date(Date.now() + expiresIn * 1000),
         contentType: contentType || undefined,
+        contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(file)}`,
       },
       new StorageSharedKeyCredential(
         AZURE_STORAGE_ACCOUNT_NAME,
@@ -622,6 +623,7 @@ export async function createPresignedViewUrl(
       Bucket: BUCKET,
       Key: key,
       ResponseContentType: contentType || undefined,
+      ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(file)}`,
     }),
     { expiresIn },
   );
