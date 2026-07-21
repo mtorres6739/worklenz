@@ -8,5 +8,9 @@ systemApiRouter.get(
   "/capabilities",
   safeControllerFunction(SystemController.getCapabilities),
 );
+systemApiRouter.get(
+  "/branding",
+  safeControllerFunction(SystemController.getBranding),
+);
 
 export default systemApiRouter;

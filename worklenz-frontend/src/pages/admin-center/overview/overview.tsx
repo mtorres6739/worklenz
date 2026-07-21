@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import OrganizationName from '@/components/admin-center/overview/organization-name/organization-name';
 import OrganizationOwner from '@/components/admin-center/overview/organization-owner/organization-owner';
 import OrganizationLogo from '@/components/admin-center/overview/organization-logo/organization-logo';
+import OrganizationBranding from '@/components/admin-center/overview/organization-branding/organization-branding';
 import {
   fetchOrganizationDetails,
   fetchOrganizationAdmins,
@@ -108,6 +109,18 @@ const Overview: React.FC = () => {
               />
             </Col>
           </Row>
+        </Card>
+
+        <Card
+          style={{
+            borderRadius: '8px',
+            boxShadow:
+              themeMode === 'dark'
+                ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+                : '0 2px 8px rgba(0, 0, 0, 0.06)',
+          }}
+        >
+          <OrganizationBranding />
         </Card>
 
         {/* Organization Admins Section */}

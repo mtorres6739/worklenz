@@ -33,6 +33,13 @@ if (process.env.NODE_ENV === "production") {
   if (process.env.ALLOW_SIGNUPS !== "false") {
     throw new Error("Production requires ALLOW_SIGNUPS=false unless the fork is intentionally reconfigured.");
   }
+  if (process.env.FEATURE_SLACK === "true") {
+    const slackRequired = ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET", "SLACK_SIGNING_SECRET"];
+    const missingSlack = slackRequired.filter((name) => !process.env[name]);
+    if (missingSlack.length > 0) {
+      throw new Error(`FEATURE_SLACK requires: ${missingSlack.join(", ")}`);
+    }
+  }
 }
 
 global.Promise = require("bluebird");

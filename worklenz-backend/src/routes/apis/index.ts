@@ -74,6 +74,8 @@ import systemApiRouter from "./system-api-router";
 import rateCardApiRouter from "./rate-card-api-router";
 import projectRateCardApiRouter from "./project-rate-card-api-router";
 import projectFinanceApiRouter from "./project-finance-api-router";
+import oidcApiRouter from "./oidc-api-router";
+import slackApiRouter from "./slack-api-router";
 
 import business from "../../business";
 
@@ -174,6 +176,8 @@ api.use("/system", systemApiRouter);
 api.use("/ratecard", rateCardApiRouter);
 api.use("/project-ratecard", projectRateCardApiRouter);
 api.use("/project-finance", projectFinanceApiRouter);
+api.use("/oidc", oidcApiRouter);
+api.use("/slack", slackApiRouter);
 
 // Business-plan (EE) routes — billing, subscriptions, finance, rate cards, client portal, slack.
 // No-op in the open-core (CE) build.

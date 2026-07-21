@@ -194,6 +194,15 @@ export function getOrganizationLogoKey(
   return keyPath;
 }
 
+export function getOrganizationFaviconKey(
+  organizationId: string,
+  fileExtension: string,
+) {
+  return path
+    .join("organization-favicons", getRootDir(), `${organizationId}.${fileExtension}`)
+    .replace(/\\/g, "/");
+}
+
 /**
  * Get the environment prefix for client portal storage
  * Uses explicit environment names: prod, uat, dev

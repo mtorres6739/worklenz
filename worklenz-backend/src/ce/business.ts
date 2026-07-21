@@ -1,4 +1,5 @@
 import { IBusinessEdition } from "../business/types";
+import { SlackIntegrationService } from "../services/slack-integration.service";
 
 /**
  * CE (open-core) edition stub.
@@ -70,11 +71,17 @@ const ceBusiness: IBusinessEdition = {
     },
   },
   slack: {
-    async getChannelConfigsByProject(): Promise<any[]> {
-      return []; // no Slack integration in open-core
+    async getChannelConfigsByProject(projectId: string): Promise<any[]> {
+      return SlackIntegrationService.getChannelConfigsByProject(projectId);
     },
-    async sendNotification(): Promise<void> {
-      // no-op
+    async sendNotification(channelConfigId, notificationType, entityType, entityId, message): Promise<void> {
+      return SlackIntegrationService.sendNotification(
+        channelConfigId,
+        notificationType,
+        entityType,
+        entityId,
+        message,
+      );
     },
   },
 };

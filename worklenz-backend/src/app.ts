@@ -30,6 +30,7 @@ import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 import verifySnsMessage from "./middlewares/verify-sns-message";
 import { getJsonUploadBodyLimitBytes } from "./shared/self-hosted-capabilities";
+import slackWebhookRouter from "./routes/slack-webhook-router";
 
 const app = express();
 
@@ -39,6 +40,10 @@ if (process.env.IMPORT_WORKER_ENABLED !== "false") {
 
 // Trust first proxy if behind reverse proxy
 app.set("trust proxy", 1);
+
+// Slack signatures cover the exact request bytes. Mount these parsers before
+// the global JSON/urlencoded parsers so signed webhook bodies are not mutated.
+app.use("/webhook/slack", slackWebhookRouter);
 
 // Basic middleware setup
 app.use(compression());

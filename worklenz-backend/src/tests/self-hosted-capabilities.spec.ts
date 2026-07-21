@@ -31,9 +31,13 @@ describe("self-hosted capability profile", () => {
   it("enables only explicitly released server-backed modules", () => {
     process.env.FEATURE_PROJECT_FINANCE = "true";
     process.env.FEATURE_CLIENT_PORTAL = "false";
+    process.env.FEATURE_OIDC = "true";
+    process.env.FEATURE_SLACK = "true";
     const profile = getSelfHostedCapabilities();
     expect(profile.capabilities.projectFinance).toBe(true);
     expect(profile.capabilities.clientPortal).toBe(false);
+    expect(profile.capabilities.oidc).toBe(true);
+    expect(profile.capabilities.slack).toBe(true);
   });
 
   it("caps upload configuration at one GiB", () => {

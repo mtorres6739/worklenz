@@ -6,28 +6,30 @@ import { LOGO_LIGHT, LOGO_DARK, XMAS_LOGO_LIGHT, XMAS_LOGO_DARK } from '@/shared
 
 type AuthPageHeaderProp = {
   description: string;
+  logoUrl?: string | null;
+  displayName?: string | null;
 };
 
 // this page header used in only in auth pages
-const AuthPageHeader = ({ description }: AuthPageHeaderProp) => {
+const AuthPageHeader = ({ description, logoUrl, displayName }: AuthPageHeaderProp) => {
   const themeMode = useAppSelector(state => state.themeReducer.mode);
   const isChristmasSeason = useMemo(() => {
     const now = new Date();
     return now.getMonth() === 11; // December
   }, []);
 
-  const logoSrc =
+  const logoSrc = logoUrl || (
     themeMode === 'dark'
       ? isChristmasSeason
         ? XMAS_LOGO_DARK
         : LOGO_DARK
       : isChristmasSeason
         ? XMAS_LOGO_LIGHT
-        : LOGO_LIGHT;
+        : LOGO_LIGHT);
 
   return (
     <Flex vertical align="center" gap={8} style={{ marginBottom: 24 }}>
-      <img src={logoSrc} alt="worklenz logo" style={{ width: '100%', maxWidth: 220 }} />
+      <img src={logoSrc} alt={displayName ? `${displayName} logo` : 'Worklenz logo'} style={{ width: '100%', maxWidth: 220, maxHeight: 90, objectFit: 'contain' }} />
       <Typography.Text style={{ color: '#8c8c8c', maxWidth: 400, textAlign: 'center' }}>
         {description}
       </Typography.Text>

@@ -91,17 +91,30 @@ run_migration() {
 run_migration
 run_migration
 
-docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
-  "SELECT to_regclass('public.finance_rate_cards') IS NOT NULL
-       AND to_regclass('public.project_rate_card_roles') IS NOT NULL
-       AND to_regclass('public.finance_work_log_rate_snapshots') IS NOT NULL;" | grep -qx t
-docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
-  "SELECT EXISTS (
-     SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'calculation_method'
-   ) AND EXISTS (
-     SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'project_members' AND column_name = 'project_rate_card_role_id'
-   );" | grep -qx t
+case "$(basename "$migration_file")" in
+2026072100100_wave3_identity_branding_slack.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.organization_branding') IS NOT NULL
+         AND to_regclass('public.oidc_providers') IS NOT NULL
+         AND to_regclass('public.oidc_identities') IS NOT NULL
+         AND to_regclass('public.integration_audit_log') IS NOT NULL
+         AND to_regclass('public.slack_workspaces') IS NOT NULL
+         AND to_regclass('public.slack_request_receipts') IS NOT NULL;" | grep -qx t
+  ;;
+2026072100000_self-hosted-finance.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.finance_rate_cards') IS NOT NULL
+         AND to_regclass('public.project_rate_card_roles') IS NOT NULL
+         AND to_regclass('public.finance_work_log_rate_snapshots') IS NOT NULL;" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'calculation_method'
+     ) AND EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'project_members' AND column_name = 'project_rate_card_role_id'
+     );" | grep -qx t
+  ;;
+esac
 
 echo "Migration rehearsal passed twice against an isolated encrypted-backup restore clone."

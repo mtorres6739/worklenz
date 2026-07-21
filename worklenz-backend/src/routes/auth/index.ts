@@ -19,6 +19,8 @@ import {
   isGoogleMobileLoginConfigured,
   isGoogleWebLoginConfigured,
 } from "../../passport/auth-provider-config";
+import OidcController from "../../controllers/oidc-controller";
+import SlackIntegrationController from "../../controllers/slack-integration-controller";
 
 const authRouter = express.Router();
 
@@ -41,6 +43,15 @@ authRouter.post("/reset-password", resetPasswordLimiter, resetEmailValidator, sa
 authRouter.post("/update-password", updatePasswordLimiter, updatePasswordValidator, passwordValidator, safeControllerFunction(AuthController.verify_reset_email));
 
 authRouter.post("/verify-captcha", safeControllerFunction(AuthController.verifyCaptcha));
+
+// Generic self-hosted OIDC. The provider is configured by an organization owner,
+// and callback validation is handled by openid-client with state, nonce, and PKCE.
+authRouter.get("/oidc", loginLimiter, OidcController.authorize);
+authRouter.get("/oidc/callback", loginLimiter, OidcController.callback);
+
+// Slack OAuth begins from an authenticated API request and returns to this
+// session-bound callback. It does not authenticate a Worklenz user.
+authRouter.get("/slack/oauth/callback", safeControllerFunction(SlackIntegrationController.callback));
 
 // Google authentication
 authRouter.get("/google", (req, res, next) => {

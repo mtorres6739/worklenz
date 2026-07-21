@@ -10,6 +10,8 @@ import i18n from 'i18next';
 import LoginPage from '../LoginPage';
 import { login, verifyAuthentication } from '@/features/auth/authSlice';
 
+const { currentSession } = vi.hoisted(() => ({ currentSession: { value: null as any } }));
+
 // Mock dependencies
 vi.mock('@/features/auth/authSlice', () => ({
   login: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock('@/hooks/useDoumentTItle', () => ({
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuthService: () => ({
-    getCurrentSession: () => null,
+    getCurrentSession: () => currentSession.value,
   }),
 }));
 
@@ -106,6 +108,7 @@ const createTestStore = (initialState: any = {}) => {
     reducer: {
       auth: (state = { isLoading: false, ...initialState.auth }) => state,
       user: (state = {}) => state,
+      themeReducer: (state = { mode: 'light' }) => state,
     },
   });
 };
@@ -124,9 +127,34 @@ const renderWithProviders = (component: React.ReactElement, initialState: any = 
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDispatch.mockReset();
     // Mock environment variables
     vi.stubEnv('VITE_ENABLE_GOOGLE_LOGIN', 'true');
     vi.stubEnv('VITE_API_URL', 'http://localhost:3000');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ oidc: null, branding: null }),
+    }));
+    currentSession.value = null;
+  });
+
+  it('shows configured OIDC and applies public branding', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        oidc: { display_name: 'SDM Identity' },
+        branding: {
+          display_name: 'SDM Projects',
+          accent_color: '#0f766e',
+          page_title: 'SDM Client Projects',
+          logo_url: null,
+          favicon_url: null,
+        },
+      }),
+    } as unknown as Response);
+    renderWithProviders(<LoginPage />);
+    expect(await screen.findByText('Sign in with SDM Identity')).toBeInTheDocument();
+    expect(document.title).toBe('SDM Client Projects');
   });
 
   it('renders login form correctly', () => {
@@ -225,8 +253,8 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />, { auth: { isLoading: true } });
 
-    const submitButton = screen.getByRole('button', { name: 'Sign In' });
-    expect(submitButton).toBeDisabled();
+    const submitButton = screen.getByRole('button', { name: /Sign In/ });
+    expect(submitButton).toHaveClass('ant-btn-loading');
     expect(screen.getByRole('img', { name: /loading/i })).toBeInTheDocument();
   });
 
@@ -247,6 +275,7 @@ describe('LoginPage', () => {
   });
 
   it('navigates to signup page', async () => {
+    vi.stubEnv('VITE_ALLOW_SIGNUPS', 'true');
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
 
@@ -294,17 +323,11 @@ describe('LoginPage', () => {
   });
 
   it('redirects to setup for users with incomplete setup', async () => {
-    const mockCurrentSession = {
+    currentSession.value = {
       id: '1',
       email: 'test@example.com',
       setup_completed: false,
     };
-
-    vi.mock('@/hooks/useAuth', () => ({
-      useAuthService: () => ({
-        getCurrentSession: () => mockCurrentSession,
-      }),
-    }));
 
     renderWithProviders(<LoginPage />);
 

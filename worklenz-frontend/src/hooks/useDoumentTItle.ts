@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
+import { setBrandedPageTitle } from '@/utils/document-branding';
 
 export const useDocumentTitle = (title: string) => {
   return useEffect(() => {
-    document.title = `Worklenz | ${title}`;
+    setBrandedPageTitle(title);
   }, [title]);
 };

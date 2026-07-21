@@ -9,9 +9,15 @@ Released flags:
 
 - `FEATURE_PROJECT_FINANCE=true`
 
-Fail-closed flags until their independent isolation and integration gates pass:
+Implemented but fail-closed until provider configuration and independent integration
+gates pass:
 
-- Client Portal, Slack, OIDC, Teams, GitHub, Drive, Google Calendar, Microsoft
+- `FEATURE_OIDC=false`
+- `FEATURE_SLACK=false`
+
+Later-wave fail-closed flags:
+
+- Client Portal, Teams, GitHub, Drive, Google Calendar, Microsoft
   Calendar, and curated plugins.
 
 The temporary frontend adapter reports commercial access for legacy public components,
@@ -36,7 +42,10 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
 - Wave 2 is implemented behind `FEATURE_PROJECT_FINANCE`: organization/project rate
   cards, hourly and man-day calculations, historical rate snapshots, finance RBAC,
   leaf fixed costs, descendant rollups, and Excel export.
-- Waves 3 through 7 remain fail-closed. OIDC, Slack, Client Portal, advertised provider
+- Wave 3 branding, generic OIDC, and Slack code is implemented. Branding is released;
+  OIDC and Slack stay disabled until provider credentials, Cloudflare routing, and
+  live callback tests pass. See [Identity, branding, and Slack](identity-branding-slack.md).
+- Waves 4 through 7 remain fail-closed. Client Portal, advertised provider
   integrations, and curated plugins must not be enabled until their backend,
   migrations, provider validation, and isolation tests are complete.
 

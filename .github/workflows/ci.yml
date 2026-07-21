@@ -72,6 +72,12 @@ jobs:
           psql -Atc "SELECT to_regclass('public.finance_rate_cards') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.project_rate_card_roles') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.finance_work_log_rate_snapshots') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.organization_branding') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.oidc_providers') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.oidc_identities') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.integration_audit_log') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.slack_workspaces') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.slack_request_receipts') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regprocedure('public.can_update_task(uuid,uuid)') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'task_templates' AND column_name = 'locked_at')" | grep -qx t
           psql -v ON_ERROR_STOP=1 <<'SQL'
@@ -250,7 +256,9 @@ jobs:
           npx vitest run
           src/utils/html-entities.test.ts
           src/utils/service-worker-security.test.ts
+          src/utils/document-branding.test.ts
           src/api/task-templates/task-templates.api.service.test.ts
+          src/pages/auth/__tests__/LoginPage.test.tsx
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=high
 

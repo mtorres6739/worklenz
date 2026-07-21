@@ -339,4 +339,33 @@ export const adminCenterApiService = {
     );
     return response.data;
   },
+
+  async getOrganizationBranding(): Promise<IServerResponse<any>> {
+    const response = await apiClient.get<IServerResponse<any>>(
+      `${rootUrl}/organization/branding`
+    );
+    return response.data;
+  },
+
+  async updateOrganizationBranding(settings: {
+    displayName?: string;
+    accentColor: string;
+    pageTitle: string;
+    emailFromName?: string;
+    emailFromAddress?: string;
+  }): Promise<IServerResponse<any>> {
+    const response = await apiClient.put<IServerResponse<any>>(
+      `${rootUrl}/organization/branding`,
+      settings
+    );
+    return response.data;
+  },
+
+  async uploadOrganizationFavicon(faviconData: string): Promise<IServerResponse<{ favicon_url: string }>> {
+    const response = await apiClient.post<IServerResponse<{ favicon_url: string }>>(
+      `${rootUrl}/organization/favicon`,
+      { faviconData }
+    );
+    return response.data;
+  },
 };

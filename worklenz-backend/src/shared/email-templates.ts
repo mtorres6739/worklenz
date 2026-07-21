@@ -4,6 +4,8 @@ import {sendEmail} from "./email";
 import {sanitize, sanitizePlainText} from "./utils";
 import FileConstants from "./file-constants";
 import db from "../config/db";
+import { createPresignedViewUrl } from "./storage";
+import { getEmailIdentityForTeam } from "../services/branding.service";
 
 // Ensure FRONTEND_URL is always an absolute URL with a scheme.
 // Without https://, email clients (e.g. Outlook Safe Links) strip the <a> tag.
@@ -43,7 +45,10 @@ async function getOrganizationLogoUrl(teamId: string): Promise<string> {
     `;
     const result = await db.query(q, [teamId]);
     const logoUrl = result.rows[0]?.logo_url;
-    return logoUrl ? safeLogoUrl(logoUrl) : DEFAULT_LOGO_URL;
+    if (!logoUrl) return DEFAULT_LOGO_URL;
+    if (/^https?:\/\//i.test(logoUrl)) return safeLogoUrl(logoUrl);
+    const signed = await createPresignedViewUrl(logoUrl, logoUrl.split("/").pop() || "logo", 3600);
+    return signed ? safeLogoUrl(signed) : DEFAULT_LOGO_URL;
   } catch {
     return DEFAULT_LOGO_URL;
   }
@@ -96,7 +101,8 @@ export async function sendJoinTeamInvitation(myName: string, teamName: string, t
   sendEmail({
     to: [toEmail],
     subject: `${sanitizePlainText(myName)} has invited you to work with ${sanitizePlainText(teamName)} in Worklenz`,
-    html: content
+    html: content,
+    from: await getEmailIdentityForTeam(teamId),
   });
 }
 
@@ -121,7 +127,8 @@ export async function sendRegisterAndJoinTeamInvitation(myName: string, userName
   sendEmail({
     to: [toEmail],
     subject: `${sanitizePlainText(myName)} has invited you to work with ${sanitizePlainText(teamName)} in Worklenz`,
-    html: content
+    html: content,
+    from: await getEmailIdentityForTeam(teamId),
   });
 }
 

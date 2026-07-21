@@ -22,6 +22,7 @@ export interface IEmail {
   to?: string[];
   subject: string;
   html: string;
+  from?: string;
 }
 
 export interface IEmailResult {
@@ -263,7 +264,7 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
           },
         },
       },
-      Source: process.env.EMAIL_FROM || "Worklenz <noreply@localhost>",
+      Source: options.from || process.env.EMAIL_FROM || "Worklenz <noreply@localhost>",
     });
 
     const res = await sesClient.send(command);

@@ -1,15 +1,15 @@
-import { Card, Badge, Button } from 'antd';
-import { GithubOutlined } from '@ant-design/icons';
+import { Card, Button } from 'antd';
+import { GithubOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { SlackIntegration } from '@/components/settings/integrations/SlackIntegration';
 import {
   MSTeamsIcon,
   SlackIcon,
-  GitHubIcon,
   GoogleDriveIcon,
   GoogleCalendarIcon,
 } from '@/components/settings/integrations/IntegrationIcons';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
+import { OidcIntegration } from '@/components/settings/integrations/OidcIntegration';
 
 interface IntegrationCardProps {
   icon: React.ReactNode;
@@ -83,6 +83,15 @@ function IntegrationsSettings() {
           available={hasCapability('slack')}
         >
           {hasCapability('slack') ? <SlackIntegration /> : undefined}
+        </IntegrationCard>
+
+        <IntegrationCard
+          icon={<SafetyCertificateOutlined />}
+          title="Single sign-on"
+          description="Connect a standards-based OIDC identity provider for invited staff accounts."
+          available={hasCapability('oidc')}
+        >
+          {hasCapability('oidc') ? <OidcIntegration /> : undefined}
         </IntegrationCard>
 
         {/* MS Teams Integration - Coming Soon */}

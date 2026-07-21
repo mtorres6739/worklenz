@@ -5,6 +5,8 @@ import safeControllerFunction from "../../shared/safe-controller-function";
 import organizationSettingsValidator from "../../middlewares/validators/organization-settings-validator";
 import teamOwnerOrAdminValidator from "../../middlewares/validators/team-owner-or-admin-validator";
 import phoneNumberValidator from "../../middlewares/validators/phone-number-validator";
+import BrandingController from "../../controllers/branding-controller";
+import { requireSelfHostedCapability } from "../../middlewares/validators/self-hosted-capability-validator";
 
 const adminCenterApiRouter = express.Router();
 
@@ -15,7 +17,11 @@ adminCenterApiRouter.get("/organization/admins", teamOwnerOrAdminValidator, safe
 adminCenterApiRouter.put("/organization", teamOwnerOrAdminValidator, organizationSettingsValidator, safeControllerFunction(AdminCenterController.updateOrganizationName));
 adminCenterApiRouter.put("/organization/calculation-method", teamOwnerOrAdminValidator, safeControllerFunction(AdminCenterController.updateOrganizationCalculationMethod));
 adminCenterApiRouter.put("/organization/owner/contact-number", teamOwnerOrAdminValidator, phoneNumberValidator, safeControllerFunction(AdminCenterController.updateOwnerContactNumber));
-// Organization logo (upload/delete) is a Business-plan feature — mounted by the EE branding router.
+adminCenterApiRouter.get("/organization/branding", requireSelfHostedCapability("organizationBranding"), teamOwnerOrAdminValidator, safeControllerFunction(BrandingController.get));
+adminCenterApiRouter.put("/organization/branding", requireSelfHostedCapability("organizationBranding"), teamOwnerOrAdminValidator, safeControllerFunction(BrandingController.update));
+adminCenterApiRouter.post("/organization/logo", requireSelfHostedCapability("organizationBranding"), teamOwnerOrAdminValidator, safeControllerFunction(BrandingController.uploadLogo));
+adminCenterApiRouter.delete("/organization/logo", requireSelfHostedCapability("organizationBranding"), teamOwnerOrAdminValidator, safeControllerFunction(BrandingController.deleteLogo));
+adminCenterApiRouter.post("/organization/favicon", requireSelfHostedCapability("organizationBranding"), teamOwnerOrAdminValidator, safeControllerFunction(BrandingController.uploadFavicon));
 
 // holiday settings
 adminCenterApiRouter.get("/organization/holiday-settings", teamOwnerOrAdminValidator, safeControllerFunction(AdminCenterController.getOrganizationHolidaySettings));

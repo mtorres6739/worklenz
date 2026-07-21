@@ -16,8 +16,15 @@ import business from "../business";
 import { NotificationsService } from "../services/notifications/notifications.service";
 import { SocketEvents } from "../socket.io/events";
 import { IO } from "../shared/io";
+import { createPresignedViewUrl } from "../shared/storage";
 
 export default class AdminCenterController extends WorklenzControllerBase {
+  private static async signOrganizationLogo<T extends { logo_url?: string | null }>(data: T): Promise<T> {
+    if (data?.logo_url && !/^https?:\/\//i.test(data.logo_url)) {
+      data.logo_url = await createPresignedViewUrl(data.logo_url, data.logo_url.split("/").pop() || "logo", 900);
+    }
+    return data;
+  }
   private static readonly TEAM_DELETE_BLOCKERS = {
     ACTIVE_TEAM: {
       title: "Unable to delete team",
@@ -92,7 +99,7 @@ export default class AdminCenterController extends WorklenzControllerBase {
                   WHERE user_id = $1;`;
     const result = await db.query(q, [req.user?.owner_id]);
     const [data] = result.rows;
-    return res.status(200).send(new ServerResponse(true, data));
+    return res.status(200).send(new ServerResponse(true, await this.signOrganizationLogo(data)));
   }
 
   @HandleExceptions()
@@ -112,7 +119,7 @@ export default class AdminCenterController extends WorklenzControllerBase {
                   WHERE user_id = $1;`;
     const result = await db.query(q, [req.user?.owner_id]);
     const [data] = result.rows;
-    return res.status(200).send(new ServerResponse(true, data));
+    return res.status(200).send(new ServerResponse(true, await this.signOrganizationLogo(data)));
   }
 
   @HandleExceptions()

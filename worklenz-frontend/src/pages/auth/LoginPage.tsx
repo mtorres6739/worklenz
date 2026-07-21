@@ -9,6 +9,7 @@ import {
   Space,
   Form,
   message,
+  ConfigProvider,
 } from '@/shared/antd-imports';
 import { Rule } from 'antd/es/form';
 
@@ -42,6 +43,7 @@ import { useDocumentTitle } from '@/hooks/useDoumentTItle';
 import alertService from '@/services/alerts/alertService';
 import { useAuthService } from '@/hooks/useAuth';
 import { WORKLENZ_REDIRECT_PROJ_KEY } from '@/shared/constants';
+import { applyBrandingBaseTitle } from '@/utils/document-branding';
 
 interface LoginFormValues {
   email: string;
@@ -63,6 +65,14 @@ const LoginPage: React.FC = () => {
     userId: '',
     projectId: '',
   });
+  const [oidcProvider, setOidcProvider] = useState<{ display_name: string } | null>(null);
+  const [branding, setBranding] = useState<{
+    display_name: string;
+    accent_color: string;
+    page_title: string;
+    logo_url: string | null;
+    favicon_url: string | null;
+  } | null>(null);
 
   const enableGoogleLogin = import.meta.env.VITE_ENABLE_GOOGLE_LOGIN === 'true' || false;
   const enableAppleLogin = import.meta.env.VITE_ENABLE_APPLE_LOGIN === 'true' || false;
@@ -157,7 +167,7 @@ const LoginPage: React.FC = () => {
             }
           } else {
             // No invitation params, redirect to home
-            window.location.href = '/worklenz/home';
+            navigate('/worklenz/home');
           }
         }
       } catch (error) {
@@ -171,6 +181,26 @@ const LoginPage: React.FC = () => {
     void checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run once on mount
+
+  useEffect(() => {
+    const apiOrigin = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+    void fetch(`${apiOrigin}/public/auth/providers`, { credentials: 'include' })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        setOidcProvider(data?.oidc || null);
+        if (data?.branding) {
+          setBranding(data.branding);
+          applyBrandingBaseTitle(data.branding.page_title || 'SDM Projects');
+          if (data.branding.favicon_url) {
+            const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.createElement('link');
+            link.rel = 'icon';
+            link.href = data.branding.favicon_url;
+            document.head.appendChild(link);
+          }
+        }
+      })
+      .catch(() => setOidcProvider(null));
+  }, []);
 
   const validationRules = {
     email: [
@@ -260,6 +290,11 @@ const LoginPage: React.FC = () => {
     }
   }, [trackMixpanelEvent, urlParams]);
 
+  const handleOidcLogin = useCallback(() => {
+    const apiOrigin = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+    window.location.href = `${apiOrigin}/secure/oidc`;
+  }, []);
+
   const handleRememberMeChange = useCallback(
     (checked: boolean) => {
       trackMixpanelEvent(evt_login_remember_me_click, { checked });
@@ -291,12 +326,13 @@ const LoginPage: React.FC = () => {
   };
 
   return (
+    <ConfigProvider theme={{ token: { colorPrimary: branding?.accent_color || '#1677ff' } }}>
     <Card
       style={styles.card}
       styles={{ body: { paddingInline: isMobile ? 24 : 48 } }}
       variant="outlined"
     >
-      <PageHeader description={t('headerDescription')} />
+      <PageHeader description={t('headerDescription')} logoUrl={branding?.logo_url} displayName={branding?.display_name} />
 
       <Form
         form={form}
@@ -356,7 +392,7 @@ const LoginPage: React.FC = () => {
               {t('loginButton')}
             </Button>
 
-            {(enableGoogleLogin || enableAppleLogin) && (
+            {(enableGoogleLogin || enableAppleLogin || oidcProvider) && (
               <>
                 <Typography.Text style={{ textAlign: 'center' }}>{t('orText')}</Typography.Text>
 
@@ -385,6 +421,18 @@ const LoginPage: React.FC = () => {
                     {t('signInWithAppleButton', { defaultValue: 'Sign in with Apple' })}
                   </Button>
                 )}
+
+                {oidcProvider && (
+                  <Button
+                    block
+                    type="default"
+                    size="large"
+                    onClick={handleOidcLogin}
+                    style={styles.googleButton}
+                  >
+                    Sign in with {oidcProvider.display_name}
+                  </Button>
+                )}
               </>
             )}
           </Flex>
@@ -406,6 +454,7 @@ const LoginPage: React.FC = () => {
         )}
       </Form>
     </Card>
+    </ConfigProvider>
   );
 };
 
