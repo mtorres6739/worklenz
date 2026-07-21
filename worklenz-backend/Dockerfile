@@ -39,7 +39,13 @@ COPY --from=builder /usr/src/app/worklenz-email-templates ./worklenz-email-templ
 COPY --from=builder /usr/src/app/database ./database
 COPY --from=builder /usr/src/app/scripts ./scripts
 
-RUN chown -R node:node /app
+# npm is only needed in the builder. Removing it from the runtime image reduces
+# the attack surface and prevents npm's bundled transitive dependencies from
+# becoming production vulnerabilities.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    && chown -R node:node /app
 USER node
 
 EXPOSE 3000
