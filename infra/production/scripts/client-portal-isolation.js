@@ -299,6 +299,22 @@ async function run() {
     403,
     "cross-origin login",
   );
+  const preflight = await request("/api/client-portal/auth/logout", {
+    method: "OPTIONS",
+    headers: {
+      "access-control-request-method": "POST",
+      "access-control-request-headers": "content-type,x-client-csrf",
+    },
+  });
+  invariant(preflight.response.status === 204, `portal CORS preflight returned HTTP ${preflight.response.status}`);
+  invariant(
+    (preflight.response.headers.get("access-control-allow-origin") || "") === origin,
+    "portal CORS preflight did not allow the canonical origin",
+  );
+  invariant(
+    (preflight.response.headers.get("access-control-allow-headers") || "").toLowerCase().includes("x-client-csrf"),
+    "portal CORS preflight did not allow X-Client-CSRF",
+  );
 
   const a = await login(fixture.a.email);
   const b = await login(fixture.b.email);
@@ -447,4 +463,3 @@ run()
   .finally(async () => {
     await db.end().catch(() => undefined);
   });
-

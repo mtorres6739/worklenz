@@ -165,7 +165,7 @@ const corsOptions: cors.CorsOptions = {
       callback(null, true);
     } else {
       console.log("Blocked origin:", origin, process.env.NODE_ENV);
-      callback(new Error("Not allowed by CORS"));
+      callback(createError(403, "Not allowed by CORS"));
     }
   },
   credentials: true,
@@ -177,6 +177,7 @@ const corsOptions: cors.CorsOptions = {
     "Accept",
     "Authorization",
     "X-CSRF-Token",
+    "X-Client-CSRF",
     "x-client-token",
     "Cache-Control",
     "cache-control",
