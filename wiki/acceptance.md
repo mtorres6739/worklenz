@@ -87,3 +87,19 @@ The collaboration code and additive schema are implemented behind
 encrypted restore-clone rehearsal and live Client A/Client B API, file, comment, and
 Socket.IO isolation checks pass. Wave 5 services, requests, invoices, payments, and
 chat remain excluded even after the Wave 4 flag is enabled.
+
+### Wave 4 deployment record: 2026-07-21
+
+- Deployed immutable SHA: `4e786c1ca3daf87bbbdf92ce7b0d0739484f9f3e`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/29843590055>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/29843590980>.
+- The migration applied twice to an isolated clone of the latest encrypted production
+  backup before deployment. All portal tables, the one-client-per-project constraint,
+  and seven tenant-scope foreign keys passed.
+- The deployer created an encrypted pre-deploy backup, applied the additive production
+  migration, started the SHA-pinned images, and passed origin and public health checks.
+- A new encrypted daily backup was created after deployment; backup-age monitoring and
+  the isolated PostgreSQL plus object-storage restore drill passed.
+- `FEATURE_CLIENT_PORTAL=false` remains confirmed in production. The portal API returns
+  404 and no client can access the unfinished pilot surface.
