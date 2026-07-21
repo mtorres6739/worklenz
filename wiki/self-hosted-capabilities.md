@@ -42,3 +42,23 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
 
 The compatibility inventory is an upper-bound test, not permission to add new legacy
 gates. Its checked-in counts must be lowered whenever compatibility code is removed.
+
+## Production rollout evidence
+
+Waves 1 and 2 were deployed on 2026-07-21 as immutable release
+`21fbc6a049a1448164db21e68952b2901d31adac`. The release passed the full CI workflow
+and high/critical container scan. Deployment created and uploaded an encrypted
+pre-deploy backup, applied the additive finance migration, and passed the automated
+health check.
+
+Post-deploy acceptance confirmed:
+
+- all application and database containers run the exact release SHA;
+- authenticated project/task CRUD succeeds and leaves no smoke-test project behind;
+- the capability response identifies `self_hosted_full`, enables project finance,
+  leaves unfinished modules disabled, and returns unlimited commercial quotas;
+- the session cookie is `Secure`, `HttpOnly`, and `SameSite`, while unauthenticated
+  capability access returns HTTP 401;
+- the Cloudflare health path succeeds and direct public access to the Hetzner origin
+  is blocked; and
+- the latest encrypted backup is inside the 30-hour monitoring threshold.

@@ -43,3 +43,8 @@ The 2026-07-21 migration rehearsal restored the latest encrypted production back
 an isolated PostgreSQL container and applied the reviewed finance migration twice. The
 second run was a no-op and the finance tables, columns, constraints, and snapshot trigger
 were present. No production database connection was used.
+
+Production release `21fbc6a049a1448164db21e68952b2901d31adac` applied migration
+`2026072100000_self-hosted-finance` on 2026-07-21. Live read-only verification confirmed
+the migration record, rate-card and snapshot tables, and snapshot trigger. An
+authenticated owner request returned the production rate-card collection successfully.
