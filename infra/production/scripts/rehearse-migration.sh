@@ -92,6 +92,28 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072100210_portal_file_scope.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.project_files') IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'project_files'::regclass
+              AND conname = 'project_files_project_scope_fk'
+              AND convalidated
+         )
+         AND EXISTS (
+           SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'task_attachments'::regclass
+              AND conname = 'task_attachments_project_scope_fk'
+              AND convalidated
+         )
+         AND EXISTS (
+           SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'task_attachments'::regclass
+              AND conname = 'task_attachments_task_scope_fk'
+              AND convalidated
+         );" | grep -qx t
+  ;;
 2026072100200_client_portal_collaboration.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.portal_client_users') IS NOT NULL
