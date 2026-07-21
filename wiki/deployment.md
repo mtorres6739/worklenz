@@ -140,6 +140,11 @@ SHA. On the host run:
 REDIS_IMAGE='redis@sha256:reviewed-digest' /srv/worklenz/scripts/deploy.sh <40-char-sha>
 ```
 
+`REDIS_IMAGE` is required for the first deployment and for an intentional Redis
+upgrade. Later deployments reuse the reviewed digest stored in `.release.env`, so
+operators do not need to re-enter infrastructure metadata for every application
+release.
+
 The deployer takes an encrypted pre-deploy backup, pulls immutable images, runs the
 reviewed migration job once, starts the stack, and verifies `/public/health`. A failed
 health check restores the previous application images but never pretends to reverse

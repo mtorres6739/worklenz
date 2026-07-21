@@ -10,6 +10,18 @@ release_sha="$1"
 deploy_dir="${WORKLENZ_DEPLOY_DIR:-/srv/worklenz}"
 cd "$deploy_dir"
 
+# Redis is infrastructure-pinned independently of the application release. Reuse
+# the reviewed digest from the active release unless an operator deliberately
+# supplies a replacement for the first deployment or a Redis upgrade.
+redis_image="${REDIS_IMAGE:-}"
+if [[ -z "$redis_image" && -f .release.env ]]; then
+  redis_image="$(sed -n 's/^REDIS_IMAGE=//p' .release.env | tail -n 1)"
+fi
+if [[ ! "$redis_image" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]; then
+  echo "Set REDIS_IMAGE to a digest-pinned image for the first deployment." >&2
+  exit 1
+fi
+
 # Release image tags always come from the generated release file. Prevent a caller's
 # exported variables from silently overriding the requested commit SHA in Compose.
 unset BACKEND_IMAGE FRONTEND_IMAGE DATABASE_IMAGE GATEWAY_IMAGE RELEASE_SHA
@@ -28,7 +40,7 @@ BACKEND_IMAGE=ghcr.io/mtorres6739/worklenz-backend:${release_sha}
 FRONTEND_IMAGE=ghcr.io/mtorres6739/worklenz-frontend:${release_sha}
 DATABASE_IMAGE=ghcr.io/mtorres6739/worklenz-database:${release_sha}
 GATEWAY_IMAGE=ghcr.io/mtorres6739/worklenz-gateway:${release_sha}
-REDIS_IMAGE=${REDIS_IMAGE:?Set REDIS_IMAGE to a digest-pinned redis image}
+REDIS_IMAGE=${redis_image}
 RELEASE_SHA=${release_sha}
 EOF
 
