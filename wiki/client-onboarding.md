@@ -10,9 +10,10 @@
 
 1. Complete the isolation acceptance suite and restore drill.
 2. Add the client's approved identities to Cloudflare Access.
-3. Invite each user to Worklenz as a regular member.
-4. Add members only to their assigned project. Never grant owner, admin, or team-lead
-   roles to a client.
+3. Create the client company in the Worklenz Clients screen and assign only the
+   designated client project.
+4. Invite each client through Client Portal. Use read-only access by default; grant
+   comments and files explicitly. Never create a staff identity for a client.
 5. Enable `NEXT_PUBLIC_WORKLENZ_PROJECTS_ENABLED=1` in Kinetic only after the internal
    gate passes. Kinetic performs an external navigation and passes no authentication.
 6. Verify the client cannot enumerate or receive events for another project.

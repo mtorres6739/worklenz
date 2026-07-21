@@ -120,6 +120,13 @@ migration with `FEATURE_CLIENT_PORTAL=false`, rehearse it twice against an encry
 restore clone, then enable the flag only after the Client A/Client B isolation gate in
 [Client Portal collaboration](client-portal-collaboration.md).
 
+The follow-up `2026072100210_portal_file_scope` migration adds the `project_files`
+table that the upstream project-file feature expects but the controlled production
+chain omitted. It also validates composite project/team and task/project scope for both
+project files and task attachments. Rehearse this migration twice and then run
+`/srv/worklenz/scripts/rehearse-client-portal.sh` against the exact candidate backend
+image before changing the portal release flag.
+
 Cloudflare Access protects the hostname during the pilot. Only the exact
 `/public/health` and signed `/webhook/emails/events` paths use separate bypass
 applications; application authorization and SNS signature verification still apply at

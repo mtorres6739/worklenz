@@ -41,3 +41,11 @@ the first client pilot and after material database or backup changes.
 The finance migration rehearsal completed successfully on 2026-07-21. The helper waits
 through the database image's temporary initialization server before restoring, so a
 short-lived `pg_isready` response cannot be mistaken for the stable rehearsal target.
+
+For a Client Portal candidate, run `/srv/worklenz/scripts/rehearse-client-portal.sh`.
+It restores the newest encrypted backup to an internal-only Docker network, applies the
+candidate image's complete migration chain, starts an isolated backend with the portal
+flag enabled, and runs disposable Client A/Client B API, file, comment, audit, CORS, and
+Socket.IO fixtures. It does not connect to or modify production PostgreSQL. The gate
+passed for internal pilot release `bdebdc5cf0aa7f8219a41bba0d539540c52e4c90` on
+2026-07-21, followed by a new encrypted daily backup and freshness check.

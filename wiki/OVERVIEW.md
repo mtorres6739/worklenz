@@ -41,5 +41,5 @@ authenticated application at `https://projects.myfusionadmin.com`.
 
 Start with staff behind Cloudflare Access. Enable the Kinetic link only after one
 internal business week without an unresolved severity-1 issue. One designated
-client may follow. Broader onboarding stays blocked until isolation coverage and a
-full restore drill pass.
+client may follow. The automated isolation and restore-clone gates have passed;
+broader onboarding stays blocked until the designated pilot is accepted.

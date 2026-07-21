@@ -48,6 +48,10 @@ comment, and session to the same team/client/user scope. A project has one porta
 grant at most. This is a deliberate initial operating invariant: never assign a shared
 project to two client companies.
 
+The follow-up `2026072100210_portal_file_scope` migration adds the `project_files`
+table omitted from the controlled production chain and validates composite
+project/team and task/project foreign keys for both project files and task attachments.
+
 Every client API query starts with the authenticated membership's team and client IDs,
 then requires an explicit `portal_project_access` row. File listing and signing repeat
 the project/team scope. Staff APIs require owner/admin access and also scope clients and
@@ -87,3 +91,30 @@ the composite tenant foreign keys, including the task-to-project comment scope. 
 rolled-back Client A/Client B fixture proves the
 scope query and duplicate-project gate. The migration rehearsal helper checks the same
 schema invariants after applying the migration twice to a restored encrypted backup.
+
+## Internal pilot activation: 2026-07-21
+
+`FEATURE_CLIENT_PORTAL=true` is active on the single-workspace SDM instance behind
+Cloudflare Access. This is an instance-level release flag; do not add another workspace
+to this instance during the pilot.
+
+The repeatable `/srv/worklenz/scripts/rehearse-client-portal.sh` gate restores the newest
+encrypted production backup to an internal-only network, applies the candidate image's
+complete migration chain, creates disposable Client A and Client B fixtures, and removes
+the clone after the run. Release `bdebdc5cf0aa7f8219a41bba0d539540c52e4c90` passed:
+
+- separate cookie authentication and bearer-token rejection;
+- `Secure`, `HttpOnly`, `SameSite=Lax`, CSRF, canonical-origin, and browser-preflight
+  controls;
+- project, task, comment, and file boundaries in both directions;
+- read-only versus comment-enabled grants and hidden-file behavior;
+- authorization-checked 15-minute private download URLs;
+- tenant-scoped audit records and Socket.IO project rooms; and
+- immediate Socket.IO disconnection plus HTTP-session denial after logout.
+
+The production deploy applied the file-scope migration, passed public and origin health,
+returned 401 from the mounted anonymous portal session endpoint, returned the required
+portal CORS headers, remained unreachable by direct non-Cloudflare origin traffic, and
+created a new encrypted daily backup. Before the designated external client, finish the
+separate-browser invitation/reset/refresh/revocation walkthrough through the staff UI
+and complete one internal business week without an unresolved severity-1 issue.

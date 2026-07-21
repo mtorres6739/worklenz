@@ -8,6 +8,8 @@ modules are exposed only when their release flag is true.
 Released flags:
 
 - `FEATURE_PROJECT_FINANCE=true`
+- `FEATURE_CLIENT_PORTAL=true` for Wave 4 collaboration on the single-workspace,
+  Cloudflare-protected internal pilot
 
 Implemented but fail-closed until provider configuration and independent integration
 gates pass:
@@ -19,10 +21,6 @@ Later-wave fail-closed flags:
 
 - Teams, GitHub, Drive, Google Calendar, Microsoft
   Calendar, and curated plugins.
-
-Implemented but fail-closed until the isolation pilot passes:
-
-- `FEATURE_CLIENT_PORTAL=false` for Wave 4 collaboration only.
 
 The temporary frontend adapter reports commercial access for legacy public components,
 but new code must call `hasCapability()`. `scripts/check-self-hosted-gates.js` records
@@ -49,10 +47,11 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
 - Wave 3 branding, generic OIDC, and Slack code is implemented. Branding is released;
   OIDC and Slack stay disabled until provider credentials, Cloudflare routing, and
   live callback tests pass. See [Identity, branding, and Slack](identity-branding-slack.md).
-- Wave 4 Client Portal collaboration is implemented behind a default-off flag with a
+- Wave 4 Client Portal collaboration is released for the internal pilot with a
   separate identity audience, explicit project/file grants, client-visible task
-  messages, private downloads, and isolated Socket.IO rooms. It remains disabled until
-  the restore-clone and Client A/Client B gates pass. See
+  messages, private downloads, and isolated Socket.IO rooms. The encrypted restore-clone
+  and Client A/Client B gate passed; the designated external client remains gated by the
+  separate-browser walkthrough and one internal business week. See
   [Client Portal collaboration](client-portal-collaboration.md).
 - Waves 5 through 7 remain fail-closed. Portal services, requests, invoices, payments,
   chat, advertised provider integrations, and curated plugins must not be enabled until

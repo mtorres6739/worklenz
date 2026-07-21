@@ -82,11 +82,10 @@ Still gated after the internal launch:
 
 ## Wave 4 Client Portal gate
 
-The collaboration code and additive schema are implemented behind
-`FEATURE_CLIENT_PORTAL=false`. The flag must remain false in production until the
-encrypted restore-clone rehearsal and live Client A/Client B API, file, comment, and
-Socket.IO isolation checks pass. Wave 5 services, requests, invoices, payments, and
-chat remain excluded even after the Wave 4 flag is enabled.
+The collaboration code and additive schema were initially deployed behind
+`FEATURE_CLIENT_PORTAL=false`. The encrypted restore-clone Client A/Client B gate has
+now passed and the flag is enabled for the Cloudflare-protected internal SDM pilot.
+Wave 5 services, requests, invoices, payments, and chat remain excluded.
 
 ### Wave 4 deployment record: 2026-07-21
 
@@ -103,3 +102,36 @@ chat remain excluded even after the Wave 4 flag is enabled.
   the isolated PostgreSQL plus object-storage restore drill passed.
 - `FEATURE_CLIENT_PORTAL=false` remains confirmed in production. The portal API returns
   404 and no client can access the unfinished pilot surface.
+
+The preceding record is the fail-closed schema deployment. It was superseded by the
+internal pilot activation below.
+
+### Wave 4 internal pilot activation: 2026-07-21
+
+- Deployed immutable SHA: `bdebdc5cf0aa7f8219a41bba0d539540c52e4c90`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/29850765281>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/29850765557>.
+- The first restore-clone pass exposed the missing `project_files` production table.
+  Additive migration `2026072100210_portal_file_scope` now creates it and validates
+  composite tenant scope for project files and task attachments. The migration passed
+  twice on the encrypted restore clone before production.
+- The next pass exposed a 500 response for rejected CORS origins and a missing
+  `X-Client-CSRF` preflight header. The release now returns 403 for blocked origins and
+  permits the required portal CSRF header only from configured origins.
+- The final encrypted-clone run passed authentication, cookie, CSRF, CORS, project/task,
+  comment, file, signed-download, audit, Socket.IO room, and logout-revocation checks for
+  disposable Client A and Client B fixtures. No fixture touched production.
+- Production runs the exact SHA with `FEATURE_CLIENT_PORTAL=true`; all containers are
+  healthy, the anonymous portal session endpoint returns 401, the canonical preflight
+  returns 204 with the correct headers, Cloudflare Access returns an authentication
+  redirect, and direct origin access remains blocked.
+- The deployer created an encrypted pre-deploy backup. A new encrypted daily backup,
+  backup-age check, and production schema verification passed after activation.
+
+Still gated before the designated external client:
+
+- staff-UI creation, invitation, reset, refresh, hidden/visible-file, and revocation
+  walkthrough in a separate browser profile;
+- one internal business week without an unresolved severity-1 issue; and
+- explicit Cloudflare Access enrollment for the designated client's identities.

@@ -38,7 +38,9 @@ blocks release.
 
 ## Client isolation boundary
 
-Clients are ordinary restricted project members, not team leads or admins. Task,
-comment, work-log, task-file, comment-file, project-file, search, report, and real-time
-paths must all resolve authorization from the authenticated user and project membership.
-The Community Edition client portal is not used.
+Client Portal identities are separate from staff users and receive only explicit
+tenant-scoped project grants. They never become staff owners, admins, team leads, or
+project managers. The released collaboration routes cover project/task reads,
+client-visible comments, project/task files, signed downloads, and isolated real-time
+rooms. Wave 5 requests, invoices, payments, services, chat, and broader portal reports
+remain unrouted until their own authorization and isolation gates pass.
