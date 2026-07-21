@@ -1,4 +1,11 @@
-import { ConfigProvider, Flex, Input, SearchOutlined, theme, Typography } from '@/shared/antd-imports';
+import {
+  ConfigProvider,
+  Flex,
+  Input,
+  SearchOutlined,
+  theme,
+  Typography,
+} from '@/shared/antd-imports';
 import { Link, useLocation } from 'react-router-dom';
 import { colors } from '@/styles/colors';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +26,7 @@ const SettingSidebar: React.FC = () => {
   const { t } = useTranslation('settings/sidebar');
   const currentSession = useAuthService().getCurrentSession();
   const isOwnerOrAdmin = useAuthService().isOwnerOrAdmin();
-  const { hasBusinessAccess } = useBusinessFeatures();
+  const { hasCapability } = useBusinessFeatures();
   const [searchValue, setSearchValue] = useState('');
   const { token } = theme.useToken();
 
@@ -34,17 +41,17 @@ const SettingSidebar: React.FC = () => {
 
   const groupedSettings = useMemo(
     () =>
-      getAccessibleSettings(isOwnerOrAdmin, hasBusinessAccess)
+      getAccessibleSettings(isOwnerOrAdmin, hasCapability)
         .filter(item => item.showInSidebar !== false)
         .filter(item => !(currentSession?.is_google && item.key === 'change-password'))
         .reduce<
-    Array<{
-      key: string;
-      label: string;
-      isDangerous?: boolean;
-      items: typeof settingsItems;
-    }>
-  >((groups, item) => {
+          Array<{
+            key: string;
+            label: string;
+            isDangerous?: boolean;
+            items: typeof settingsItems;
+          }>
+        >((groups, item) => {
           if (!item.groupKey) {
             return groups;
           }
@@ -85,7 +92,7 @@ const SettingSidebar: React.FC = () => {
 
           return groups;
         }, []),
-    [currentSession, isOwnerOrAdmin, searchValue, t]
+    [currentSession, hasCapability, isOwnerOrAdmin, searchValue, t]
   );
 
   return (

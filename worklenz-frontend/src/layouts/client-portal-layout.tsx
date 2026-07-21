@@ -1,4 +1,4 @@
-import { Layout } from '@/shared/antd-imports';
+import { Layout, Spin } from '@/shared/antd-imports';
 import React, { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAppSelector } from '../hooks/useAppSelector';
@@ -22,7 +22,8 @@ const ClientPortalLayout = () => {
 
   // Auth and business access check
   const auth = useAuthService();
-  const { hasBusinessAccess } = useBusinessFeatures();
+  const { hasCapability, capabilitiesLoaded } = useBusinessFeatures();
+  const hasBusinessAccess = hasCapability('clientPortal');
   const { trackMixpanelEvent } = useMixpanelTracking();
 
   // Redirect unauthorized users to main dashboard
@@ -30,8 +31,12 @@ const ClientPortalLayout = () => {
     return <Navigate to="/auth/signin" replace />;
   }
 
+  if (!capabilitiesLoaded) {
+    return <Spin size="large" fullscreen />;
+  }
+
   if (!hasBusinessAccess) {
-    return <Navigate to="/worklenz/admin-center/billing" replace />;
+    return <Navigate to="/worklenz/home" replace />;
   }
 
   // Auto-collapse sidebar on mobile

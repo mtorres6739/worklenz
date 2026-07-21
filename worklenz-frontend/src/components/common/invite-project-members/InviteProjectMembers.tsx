@@ -11,9 +11,6 @@ import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import { ROLE_NAMES } from '@/types/roles/role.types';
 import { projectMembersApiService } from '@/api/project-members/project-members.api.service';
 import { teamMembersApiService } from '@/api/team-members/teamMembers.api.service';
-import { SeatLimitModal } from '@/components/common/seat-limit-modal';
-import { useUpgradePrompt } from '@/worklenz-ee/hooks/use-upgrade-prompt';
-import { useNavigate } from 'react-router-dom';
 
 interface FormValues {
   emails: string[];
@@ -41,18 +38,11 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
   const [hasActiveLink, setHasActiveLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  // Seat limit modal states
-  const [seatLimitModalOpen, setSeatLimitModalOpen] = useState(false);
-  const [seatLimitData, setSeatLimitData] = useState<any>(null);
-  const [pendingInvite, setPendingInvite] = useState<any>(null);
-
   const [form] = Form.useForm<FormValues>();
-  const navigate = useNavigate();
 
   const { t } = useTranslation('settings/team-members');
   const isDrawerOpen = useAppSelector(state => state.projectMemberReducer.isDrawerOpen);
   const dispatch = useAppDispatch();
-  const { promptUpgrade } = useUpgradePrompt();
 
   // Fetch team members when modal opens
   useEffect(() => {
@@ -142,12 +132,7 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
             is_admin: values.access === 'admin',
           };
           const result = await projectMembersApiService.inviteByEmail(body);
-          
-          // Check for seat limit exceeded error
-          if (!result.done && result.body?.error_code === 'SEAT_LIMIT_EXCEEDED') {
-            return { email, success: false, error: result.message, seatLimitError: result.body };
-          }
-          
+
           return { email, success: result.done, error: result.message };
         } catch (error: any) {
           return { email, success: false, error: error.message || 'Unknown error' };
@@ -155,17 +140,7 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
       });
 
       const results = await Promise.all(invitePromises);
-      
-      // Check if any result has a seat limit error
-      const seatLimitError = results.find(r => (r as any).seatLimitError);
-      if (seatLimitError) {
-        setSeatLimitData((seatLimitError as any).seatLimitError);
-        setPendingInvite({ emails: emailList, access: values.access, projectId, projectName });
-        setSeatLimitModalOpen(true);
-        setLoading(false);
-        return;
-      }
-      
+
       const successResults = results.filter(r => r.success);
       const failedResults = results.filter(r => !r.success);
 
@@ -207,30 +182,14 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
       };
 
       const res = await projectMembersApiService.generateInvitationLink(linkData);
-      
-      // Check for seat limit exceeded error
-      if (!res.done && res.body?.error_code === 'SEAT_LIMIT_EXCEEDED') {
-        setSeatLimitData(res.body);
-        setPendingInvite({ 
-          emails: [], 
-          access: 'member', 
-          projectId, 
-          projectName,
-          isLinkGeneration: true 
-        });
-        setSeatLimitModalOpen(true);
-        return;
-      }
-      
+
       if (res.done && res.body.invitation_url) {
         setInvitationLink(res.body.invitation_url);
         setLinkExpiry(res.body.expires_at);
         setHasActiveLink(true);
-        
       }
     } catch (error) {
       console.error('Error generating invitation link:', error);
-      
     } finally {
       setLinkLoading(false);
     }
@@ -239,7 +198,7 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
   // Copy existing link to clipboard (synchronous user action)
   const handleCopyLink = async () => {
     if (!invitationLink) return;
-    
+
     try {
       // This works in all browsers because it's called directly from user click
       await navigator.clipboard.writeText(invitationLink);
@@ -256,27 +215,6 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
     setLinkCopied(false);
     setTeamMemberOptions([]);
     dispatch(toggleProjectMemberDrawer());
-  };
-
-  const handleSeatLimitUpgrade = () => {
-    setSeatLimitModalOpen(false);
-    promptUpgrade();
-  };
-
-  const handleSeatLimitDeactivate = () => {
-    setSeatLimitModalOpen(false);
-    // Store pending invite in localStorage for auto-send after deactivation
-    if (pendingInvite) {
-      localStorage.setItem('pendingProjectInvite', JSON.stringify(pendingInvite));
-    }
-    // Navigate to Settings > Members
-    navigate('/worklenz/settings/team-members');
-  };
-
-  const handleSeatLimitModalClose = () => {
-    setSeatLimitModalOpen(false);
-    setPendingInvite(null);
-    setSeatLimitData(null);
   };
 
   return (
@@ -304,9 +242,7 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
                   onClick={handleCopyLink}
                   icon={linkCopied ? <CheckOutlined /> : <CopyOutlined />}
                 >
-                  {linkCopied
-                    ? t('projectInvite_copiedShort')
-                    : t('projectInvite_copyLinkButton')}
+                  {linkCopied ? t('projectInvite_copiedShort') : t('projectInvite_copyLinkButton')}
                 </Button>
               </>
             ) : (
@@ -370,7 +306,9 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
                     );
                   }}
                   notFoundContent={
-                    <Typography.Text type="secondary">{t('projectInvite_emailHelp')}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      {t('projectInvite_emailHelp')}
+                    </Typography.Text>
                   }
                   tokenSeparators={[',', ' ', ';']}
                 />
@@ -396,20 +334,6 @@ const InviteProjectMembers = ({ projectId, projectName }: InviteProjectMembersPr
           </Form>
         </Flex>
       </Modal>
-
-      {/* Seat Limit Modal */}
-      {seatLimitData && (
-        <SeatLimitModal
-          open={seatLimitModalOpen}
-          onClose={handleSeatLimitModalClose}
-          currentMembers={seatLimitData.current_members}
-          planLimit={seatLimitData.plan_seat_limit}
-          businessLimit={seatLimitData.business_plan_limit}
-          isAppSumoUser={seatLimitData.is_appsumo_user}
-          onUpgrade={handleSeatLimitUpgrade}
-          onDeactivate={handleSeatLimitDeactivate}
-        />
-      )}
     </>
   );
 };

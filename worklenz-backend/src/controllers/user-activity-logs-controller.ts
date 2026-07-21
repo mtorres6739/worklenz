@@ -99,7 +99,6 @@ export default class UserActivityLogsController extends WorklenzControllerBase {
         INNER JOIN tasks t ON twl.task_id = t.id AND t.archived = FALSE
         INNER JOIN projects p ON t.project_id = p.id AND p.team_id = $1
         WHERE twl.user_id = $2
-          AND twl.created_at >= NOW() - INTERVAL '90 days'
         GROUP BY twl.task_id, t.name, t.project_id, p.name, p.color_code, t.status_id, t.total_minutes
         HAVING SUM(twl.time_spent) > 0
         ORDER BY MAX(twl.created_at) DESC

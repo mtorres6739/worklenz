@@ -18,7 +18,6 @@ import { CrownOutlined } from '@ant-design/icons';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { useAppSelector } from '@/hooks/useAppSelector';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
-import { useUpgradePrompt } from '@/worklenz-ee/hooks/use-upgrade-prompt';
 import { hasFinanceViewPermission } from '@/utils/finance-permissions';
 import { getProject, setProjectId, setProjectView } from '@/features/project/project.slice';
 import {
@@ -32,9 +31,16 @@ import ProjectViewHeader from './project-view-header';
 import './project-view.css';
 import { resetTaskListData } from '@/features/tasks/tasks.slice';
 import { resetBoardData } from '@/features/board/board-slice';
-import { resetTaskManagement, fetchTasksV3 } from '@/features/task-management/task-management.slice';
+import {
+  resetTaskManagement,
+  fetchTasksV3,
+} from '@/features/task-management/task-management.slice';
 import { store } from '@/app/store';
-import { resetGrouping, initGroupingFromServer, selectCurrentGrouping } from '@/features/task-management/grouping.slice';
+import {
+  resetGrouping,
+  initGroupingFromServer,
+  selectCurrentGrouping,
+} from '@/features/task-management/grouping.slice';
 import { resetSelection } from '@/features/task-management/selection.slice';
 import { resetFields, setProjectContext } from '@/features/task-management/taskListFields.slice';
 import { fetchLabels } from '@/features/taskAttributes/taskLabelSlice';
@@ -49,7 +55,11 @@ import {
   setShowTaskDrawer,
   resetTaskDrawer,
 } from '@/features/task-drawer/task-drawer.slice';
-import { resetState as resetEnhancedKanbanState, initKanbanGroupingFromServer, IGroupBy } from '@/features/enhanced-kanban/enhanced-kanban.slice';
+import {
+  resetState as resetEnhancedKanbanState,
+  initKanbanGroupingFromServer,
+  IGroupBy,
+} from '@/features/enhanced-kanban/enhanced-kanban.slice';
 import { setProjectId as setInsightsProjectId } from '@/features/projects/insights/project-insights.slice';
 import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
 import ProjectViewSkeleton from './project-view-skeleton';
@@ -57,8 +67,6 @@ import { useTranslation } from 'react-i18next';
 import { useTimerInitialization } from '@/hooks/useTimerInitialization';
 import { useAuthService } from '@/hooks/useAuth';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
-import { useAuthStatus } from '@/hooks/useAuthStatus';
-import { evt_paywall_hit } from '@/shared/worklenz-analytics-events';
 import { verifyAuthentication } from '@/features/auth/authSlice';
 import { setUser } from '@/features/user/userSlice';
 import { projectsApi } from '@/api/projects/projects.v1.api.service';
@@ -102,14 +110,16 @@ const ProjectView = React.memo(() => {
   // Get auth service and current session
   const authService = useAuthService();
   const currentSession = useMemo(() => authService.getCurrentSession(), [authService]);
-  const { hasBusinessAccess, isFreeUser: isFree } = useBusinessFeatures();
-  const { promptUpgrade } = useUpgradePrompt();
+  const { hasCapability, isFreeUser: isFree } = useBusinessFeatures();
+  const hasBusinessAccess = hasCapability('projectFinance');
   const { trackMixpanelEvent } = useMixpanelTracking();
-  const { isLicenseExpired } = useAuthStatus();
 
   // Memoize URL params to prevent unnecessary state updates
   const urlParams = useMemo(() => {
-    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, { hasBusinessAccess, isFree });
+    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, {
+      hasBusinessAccess,
+      isFree,
+    });
     return {
       tab: searchParams.get('tab') || filteredTabItems[0]?.key || 'tasks-list',
       pinnedTab: searchParams.get('pinned_tab') || '',
@@ -135,18 +145,17 @@ const ProjectView = React.memo(() => {
   // Update local state when URL params change
   useEffect(() => {
     // Validate that the tab from URL is not disabled before setting it
-    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, { hasBusinessAccess, isFree });
+    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, {
+      hasBusinessAccess,
+      isFree,
+    });
     const requestedTab = filteredTabItems.find(item => item.key === urlParams.tab);
 
-    // If tab is disabled, redirect to first available tab and show upgrade modal
-    if (requestedTab?.disabled) {
+    // Invalid or unreleased tabs fall back to the first available view.
+    if (!requestedTab || requestedTab.disabled) {
       const firstAvailableTab = filteredTabItems.find(item => !item.disabled);
       if (firstAvailableTab) {
         setActiveTab(firstAvailableTab.key);
-        // Show upgrade modal after a brief delay to ensure component is mounted
-        setTimeout(() => {
-          promptUpgrade();
-        }, 100);
       }
     } else {
       setActiveTab(urlParams.tab);
@@ -325,9 +334,11 @@ const ProjectView = React.memo(() => {
             // task list reflects the correct saved grouping without requiring a refresh.
             const projectData = result.payload as any;
             const validGroupings = ['status', 'priority', 'phase'] as const;
-            type GroupingType = typeof validGroupings[number];
+            type GroupingType = (typeof validGroupings)[number];
 
-            const taskListGroupBy: GroupingType = validGroupings.includes(projectData?.task_list_group_by)
+            const taskListGroupBy: GroupingType = validGroupings.includes(
+              projectData?.task_list_group_by
+            )
               ? projectData.task_list_group_by
               : 'status';
 
@@ -339,7 +350,9 @@ const ProjectView = React.memo(() => {
             const currentListGrouping = selectCurrentGrouping(store.getState());
 
             dispatch(initGroupingFromServer({ grouping: taskListGroupBy, projectId }));
-            dispatch(initKanbanGroupingFromServer({ groupBy: boardGroupBy as IGroupBy, projectId }));
+            dispatch(
+              initKanbanGroupingFromServer({ groupBy: boardGroupBy as IGroupBy, projectId })
+            );
 
             // If the task list was already fetched in parallel but with the wrong grouping,
             // re-fetch now that the correct grouping is in Redux state
@@ -353,12 +366,12 @@ const ProjectView = React.memo(() => {
           try {
             // Store current team ID before refresh
             const currentTeamId = currentSession?.team_id;
-            
+
             const authResult = await dispatch(verifyAuthentication()).unwrap();
             if (authResult.authenticated) {
               dispatch(setUser(authResult.user));
               authService.setCurrentSession(authResult.user);
-              
+
               // Check if team switched - if so, force page reload to update all components
               const newTeamId = authResult.user?.team_id;
               if (currentTeamId && newTeamId && currentTeamId !== newTeamId) {
@@ -443,26 +456,18 @@ const ProjectView = React.memo(() => {
   const handleTabChange = useCallback(
     (key: string) => {
       // Find the tab item to check if it's disabled
-      const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, { hasBusinessAccess, isFree });
+      const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, {
+        hasBusinessAccess,
+        isFree,
+      });
       const tabItem = filteredTabItems.find(item => item.key === key);
 
       if (!tabItem) {
         return;
       }
 
-      // If tab is disabled, open upgrade modal instead of navigating
+      // Disabled entries are not actionable in the self-hosted build.
       if (tabItem?.disabled) {
-        // Track paywall hit for trial expired users clicking Finance tab
-        if (isLicenseExpired && key === 'finance') {
-          trackMixpanelEvent(evt_paywall_hit, {
-            feature_blocked: 'finance',
-            user_type: currentSession?.subscription_type?.toLowerCase(),
-            trial_expired: true,
-            project_id: projectId,
-            source: 'project_finance_tab',
-          });
-        }
-        promptUpgrade();
         return;
       }
 
@@ -516,7 +521,10 @@ const ProjectView = React.memo(() => {
       return [];
     }
 
-    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, { hasBusinessAccess, isFree });
+    const filteredTabItems = getFilteredTabItems(currentSession, selectedProject, {
+      hasBusinessAccess,
+      isFree,
+    });
 
     const menuItems = filteredTabItems.map(item => {
       const premiumTabs = ['finance', 'project-insights-member-overview', 'roadmap', 'workload'];

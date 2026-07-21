@@ -41,11 +41,8 @@ const Unauthorized = lazy(
 const GanttDemoPage = lazy(
   ChunkErrorHandler.wrapLazyImport(() => import('@/pages/GanttDemoPage'), 'GanttDemoPage')
 );
-const LicenseExpiredPage = lazy(
-  ChunkErrorHandler.wrapLazyImport(
-    () => import('@/pages/license-expired/LicenseExpired'),
-    'LicenseExpiredPage'
-  )
+const SelfHostedAbout = lazy(
+  ChunkErrorHandler.wrapLazyImport(() => import('@/pages/about/SelfHostedAbout'), 'SelfHostedAbout')
 );
 
 // Define AdminGuard component with defensive programming
@@ -171,18 +168,18 @@ const mainRoutes: RouteObject[] = [
         ),
       },
       {
-        path: 'gantt-demo',
+        path: 'about',
         element: (
           <Suspense fallback={<SuspenseFallback />}>
-            <GanttDemoPage />
+            <SelfHostedAbout />
           </Suspense>
         ),
       },
       {
-        path: 'license-expired',
+        path: 'gantt-demo',
         element: (
           <Suspense fallback={<SuspenseFallback />}>
-            <LicenseExpiredPage />
+            <GanttDemoPage />
           </Suspense>
         ),
       },

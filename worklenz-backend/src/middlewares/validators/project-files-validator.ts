@@ -5,8 +5,9 @@ import { IWorkLenzRequest } from "../../interfaces/worklenz-request";
 import { IWorkLenzResponse } from "../../interfaces/worklenz-response";
 import { ServerResponse } from "../../models/server-response";
 import { sanitizeSVG } from "../../shared/utils";
+import { getConfiguredUploadBytes } from "../../shared/self-hosted-capabilities";
 
-export const MAX_PROJECT_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+export const MAX_PROJECT_FILE_SIZE_BYTES = getConfiguredUploadBytes();
 
 const BLOCKED_EXTENSIONS = [
   "exe",
@@ -89,7 +90,7 @@ export default function projectFilesValidator(
         new ServerResponse(
           false,
           null,
-          "Max file size is 100 MB per file.",
+          `Max file size is ${Math.floor(MAX_PROJECT_FILE_SIZE_BYTES / 1024 / 1024)} MB per file.`,
         ).withTitle("Upload failed!"),
       );
   }

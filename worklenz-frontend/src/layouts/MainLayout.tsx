@@ -4,8 +4,6 @@ import { memo, useMemo } from 'react';
 
 import Navbar from '@/features/navbar/navbar';
 import { useAppSelector } from '../hooks/useAppSelector';
-import { TrialExpirationAlert } from '@/components/TrialExpirationAlert/TrialExpirationAlert';
-import UpgradePlansModal from '@/worklenz-ee/components/UpgradePlansModal';
 import { ImportProgressNotifier } from '@/components/imports/ImportProgressNotifier';
 import { MobileAppBanner } from '@/components/mobile-app/MobileAppBanner';
 
@@ -38,7 +36,6 @@ const MainLayout = memo(() => {
       <ImportProgressNotifier />
       <Layout className="min-h-screen">
         <MobileAppBanner />
-        <TrialExpirationAlert />
 
         <Layout.Header
           className={`sticky top-0 z-[999] flex items-center p-0 shadow-md ${
@@ -52,8 +49,6 @@ const MainLayout = memo(() => {
           <Outlet />
         </Layout.Content>
       </Layout>
-
-      <UpgradePlansModal />
     </>
   );
 });

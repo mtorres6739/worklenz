@@ -23,5 +23,21 @@ disposable PostgreSQL container, verifies public tables, and retrieves a sample
 attachment. Record the date, commit SHA, backup key, duration, and result without
 recording secret material.
 
+Before a release with an additive database change, copy only the reviewed migration
+file to the host and run:
+
+```bash
+/srv/worklenz/scripts/rehearse-migration.sh /path/to/reviewed-migration.js
+```
+
+The rehearsal downloads and verifies the latest encrypted backup, restores it into an
+isolated internal Docker network, applies the migration twice with a dedicated tracking
+table, verifies the expected finance schema, and removes the disposable database. It
+never connects to or modifies the production PostgreSQL service.
+
 RPO is 24 hours. RTO is four hours. A successful isolated restore is mandatory before
 the first client pilot and after material database or backup changes.
+
+The finance migration rehearsal completed successfully on 2026-07-21. The helper waits
+through the database image's temporary initialization server before restoring, so a
+short-lived `pg_isready` response cannot be mistaken for the stable rehearsal target.

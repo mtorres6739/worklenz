@@ -9,6 +9,7 @@ import {
   GoogleDriveIcon,
   GoogleCalendarIcon,
 } from '@/components/settings/integrations/IntegrationIcons';
+import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
 
 interface IntegrationCardProps {
   icon: React.ReactNode;
@@ -65,6 +66,7 @@ function IntegrationCard({ icon, title, description, available, children }: Inte
 
 function IntegrationsSettings() {
   const { t } = useTranslation('settings/integrations');
+  const { hasCapability } = useBusinessFeatures();
 
   return (
     <div className="space-y-6">
@@ -78,9 +80,9 @@ function IntegrationsSettings() {
             defaultValue:
               'Integrate Slack to receive real-time notifications, create tasks, and sync your team.',
           })}
-          available={true}
+          available={hasCapability('slack')}
         >
-          <SlackIntegration />
+          {hasCapability('slack') ? <SlackIntegration /> : undefined}
         </IntegrationCard>
 
         {/* MS Teams Integration - Coming Soon */}

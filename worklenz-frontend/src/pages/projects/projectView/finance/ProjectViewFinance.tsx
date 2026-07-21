@@ -74,7 +74,8 @@ const ProjectViewFinance = () => {
   const auth = useAuthService();
   const currentSession = auth.getCurrentSession();
   const hasEditPermission = hasFinanceEditPermission(currentSession, project);
-  const { hasBusinessAccess } = useBusinessFeatures();
+  const { hasCapability } = useBusinessFeatures();
+  const hasFinanceCapability = hasCapability('projectFinance');
 
   // Get project-specific currency from finance API response, fallback to project reducer, then default
   const projectCurrency = (
@@ -460,16 +461,11 @@ const ProjectViewFinance = () => {
 
   return (
     <Flex vertical gap={16} style={{ overflowX: 'hidden' }}>
-      {!hasBusinessAccess && (
+      {!hasFinanceCapability && (
         <Alert
-          message={t('alerts.businessPlanRequired.message', {
-            defaultValue: 'Business Plan Required',
-          })}
-          description={t('alerts.businessPlanRequired.description', {
-            defaultValue:
-              'Project finance features are available only on Business and Enterprise plans. Upgrade your plan to access these features.',
-          })}
-          type="warning"
+          message="Project finance is not enabled"
+          description="This server-backed module has not been released for this workspace."
+          type="info"
           showIcon
           style={{ marginBottom: 16 }}
         />
@@ -482,41 +478,33 @@ const ProjectViewFinance = () => {
             <Flex>
               <Tooltip
                 title={
-                  !hasBusinessAccess
-                    ? t('tooltips.availableOnlyOnBusinessPlan', {
-                        defaultValue: 'Available only on Business plan',
-                      })
-                    : ''
+                  !hasFinanceCapability ? 'Project finance is not enabled for this workspace' : ''
                 }
               >
                 <Button
                   className={`${activeTab === 'finance' && 'border-[#1890ff] text-[#1890ff]'} rounded-r-none`}
-                  onClick={() => hasBusinessAccess && dispatch(setActiveTab('finance'))}
-                  disabled={!hasBusinessAccess}
+                  onClick={() => hasFinanceCapability && dispatch(setActiveTab('finance'))}
+                  disabled={!hasFinanceCapability}
                 >
                   {t('financeText', { defaultValue: 'Finance' })}
                 </Button>
               </Tooltip>
               <Tooltip
                 title={
-                  !hasBusinessAccess
-                    ? t('tooltips.availableOnlyOnBusinessPlan', {
-                        defaultValue: 'Available only on Business plan',
-                      })
-                    : ''
+                  !hasFinanceCapability ? 'Project finance is not enabled for this workspace' : ''
                 }
               >
                 <Button
                   className={`${activeTab === 'ratecard' && 'border-[#1890ff] text-[#1890ff]'} rounded-l-none`}
-                  onClick={() => hasBusinessAccess && dispatch(setActiveTab('ratecard'))}
-                  disabled={!hasBusinessAccess}
+                  onClick={() => hasFinanceCapability && dispatch(setActiveTab('ratecard'))}
+                  disabled={!hasFinanceCapability}
                 >
                   {t('ratecardSingularText', { defaultValue: 'Rate Card' })}
                 </Button>
               </Tooltip>
             </Flex>
 
-            {activeTab === 'finance' && hasBusinessAccess && (
+            {activeTab === 'finance' && hasFinanceCapability && (
               <Flex align="center" gap={16} style={{ marginInlineStart: 12 }}>
                 <Flex align="center" gap={4}>
                   {t('groupByText', { defaultValue: 'Group by' })}:
@@ -556,7 +544,7 @@ const ProjectViewFinance = () => {
                   <Button
                     icon={<SettingOutlined />}
                     onClick={() => setBudgetSettingsDrawerVisible(true)}
-                    disabled={!hasBusinessAccess}
+                    disabled={!hasFinanceCapability}
                     aria-label={t('budgetSettingsDrawer.title', {
                       defaultValue: 'Project Budget Settings',
                     })}
@@ -565,11 +553,7 @@ const ProjectViewFinance = () => {
               )}
               <Tooltip
                 title={
-                  !hasBusinessAccess
-                    ? t('tooltips.availableOnlyOnBusinessPlan', {
-                        defaultValue: 'Available only on Business plan',
-                      })
-                    : ''
+                  !hasFinanceCapability ? 'Project finance is not enabled for this workspace' : ''
                 }
               >
                 <Button
@@ -577,7 +561,7 @@ const ProjectViewFinance = () => {
                   icon={<DownloadOutlined />}
                   loading={exporting}
                   onClick={handleExport}
-                  disabled={!hasBusinessAccess}
+                  disabled={!hasFinanceCapability}
                 >
                   {t('exportAsExcelButton', { defaultValue: 'Export as Excel' })}
                 </Button>
@@ -590,7 +574,7 @@ const ProjectViewFinance = () => {
                 <Select
                   value={projectCurrency}
                   loading={currencyLoading}
-                  disabled={!hasEditPermission || !hasBusinessAccess}
+                  disabled={!hasEditPermission || !hasFinanceCapability}
                   options={CURRENCY_OPTIONS}
                   showSearch
                   optionFilterProp="label"
@@ -603,17 +587,13 @@ const ProjectViewFinance = () => {
               </Flex>
               <Tooltip
                 title={
-                  !hasBusinessAccess
-                    ? t('tooltips.availableOnlyOnBusinessPlan', {
-                        defaultValue: 'Available only on Business plan',
-                      })
-                    : ''
+                  !hasFinanceCapability ? 'Project finance is not enabled for this workspace' : ''
                 }
               >
                 <Button
                   type="primary"
                   onClick={() => dispatch(toggleImportRatecardsDrawer())}
-                  disabled={!hasBusinessAccess}
+                  disabled={!hasFinanceCapability}
                 >
                   {t('importButton', { defaultValue: 'Import' })}
                 </Button>
@@ -626,13 +606,13 @@ const ProjectViewFinance = () => {
       {/* Tab Content */}
       <div
         style={{
-          opacity: hasBusinessAccess ? 1 : 0.6,
-          pointerEvents: hasBusinessAccess ? 'auto' : 'none',
+          opacity: hasFinanceCapability ? 1 : 0.6,
+          pointerEvents: hasFinanceCapability ? 'auto' : 'none',
         }}
       >
         {activeTab === 'finance' ? (
           <div>
-            {!hasEditPermission && hasBusinessAccess && (
+            {!hasEditPermission && hasFinanceCapability && (
               <Alert
                 message={t('alerts.limitedAccess.message', { defaultValue: 'Limited Access' })}
                 description={t('alerts.limitedAccess.financeDescription', {
@@ -861,7 +841,7 @@ const ProjectViewFinance = () => {
           </div>
         ) : (
           <Flex vertical gap={8}>
-            {!hasEditPermission && hasBusinessAccess && (
+            {!hasEditPermission && hasFinanceCapability && (
               <Alert
                 message={t('alerts.limitedAccess.message', { defaultValue: 'Limited Access' })}
                 description={t('alerts.limitedAccess.ratecardDescription', {

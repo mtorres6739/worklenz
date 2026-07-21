@@ -31,6 +31,8 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - [Backup and restore](backup-restore.md)
 - [Client onboarding](client-onboarding.md)
 - [Website pre-launch checklist](website-prelaunch-checklist.md)
+- [SDM self-hosted capabilities](self-hosted-capabilities.md)
+- [Project finance](project-finance.md)
 - [Acceptance and rollout gates](acceptance.md)
 
 ## Current rollout rule

@@ -1,4 +1,4 @@
-import { DashboardOutlined, LogoutOutlined, UserOutlined } from '@/shared/antd-imports';
+import { UserOutlined } from '@/shared/antd-imports';
 import {
   Button,
   Card,
@@ -8,7 +8,6 @@ import {
   Tooltip,
   Typography,
 } from '@/shared/antd-imports';
-import { MobileOutlined } from '@ant-design/icons';
 
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +15,6 @@ import { memo, useState } from 'react';
 import MobileAppModal from '@/components/mobile-app/MobileAppModal';
 
 import { useAppSelector } from '@/hooks/useAppSelector';
-import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { RootState } from '@/app/store';
 
 import { getRole } from '@/utils/session-helper';
@@ -24,9 +22,6 @@ import { getRole } from '@/utils/session-helper';
 import './profile-dropdown.css';
 import './profile-button.css';
 import SingleAvatar from '@/components/common/single-avatar/single-avatar';
-import { useAuthService } from '@/hooks/useAuth';
-import { useAuthStatus } from '@/hooks/useAuthStatus';
-import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 
 interface ProfileButtonProps {
   isOwnerOrAdmin: boolean;
@@ -35,8 +30,6 @@ interface ProfileButtonProps {
 const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
   const { t } = useTranslation('navbar');
   const currentSession = useAppSelector((state: RootState) => state.userReducer);
-  const { isLicenseExpired } = useAuthStatus();
-  const { trackMixpanelEvent } = useMixpanelTracking();
 
   const role = getRole();
   const themeMode = useAppSelector((state: RootState) => state.themeReducer.mode);
@@ -45,10 +38,6 @@ const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
 
   const getLinkStyle = () => ({
     color: themeMode === 'dark' ? '#ffffffd9' : '#181818',
-  });
-
-  const getDangerLinkStyle = () => ({
-    color: '#ff4d4f',
   });
 
   const profile: MenuProps['items'] = [
@@ -93,6 +82,16 @@ const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     ({role})
                   </Typography.Text>
+                  <Typography.Text style={{ fontSize: 11, color: '#1677ff' }}>
+                    SDM Self-Hosted
+                  </Typography.Text>
+                  <Typography.Text
+                    type="secondary"
+                    ellipsis={{ tooltip: currentSession?.build_v }}
+                    style={{ fontSize: 10, maxWidth: 160 }}
+                  >
+                    {currentSession?.build_v || 'development'}
+                  </Typography.Text>
                 </Flex>
               </Flex>
             </div>
@@ -105,38 +104,28 @@ const ProfileButton = ({ isOwnerOrAdmin }: ProfileButtonProps) => {
               {t('adminCenter')}
             </Link>
           )}
-          {isOwnerOrAdmin && (
-            <Link
-              to="/worklenz/admin-center/billing"
-              style={getLinkStyle()}
-              onClick={() => {
-                trackMixpanelEvent('billing_profile_dropdown_click', {
-                  user_type: currentSession?.subscription_type?.toLowerCase(),
-                  is_owner_or_admin: true,
-                });
-              }}
-            >
-              {t('billing', { defaultValue: 'Billing' })}
-            </Link>
-          )}
-          {!isLicenseExpired && (
-            <Link to="/worklenz/settings/profile" style={getLinkStyle()}>
-              {t('settings')}
-            </Link>
-          )}
-          {!isLicenseExpired && (
-            <div
-              onClick={() => { setMobileModalOpen(true); setDropdownOpen(false); }}
-              style={{ ...getLinkStyle(), cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
-            >
-              {t('getMobileApp')}
-            </div>
-          )}
-          {isLicenseExpired && (
-            <Link to="/worklenz/settings/account-deletion" style={getDangerLinkStyle()}>
-              {t('deleteAccount')}
-            </Link>
-          )}
+          <Link to="/worklenz/settings/profile" style={getLinkStyle()}>
+            {t('settings')}
+          </Link>
+          <Link to="/worklenz/about" style={getLinkStyle()}>
+            About SDM Self-Hosted
+          </Link>
+          <div
+            onClick={() => {
+              setMobileModalOpen(true);
+              setDropdownOpen(false);
+            }}
+            style={{
+              ...getLinkStyle(),
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontWeight: 700,
+            }}
+          >
+            {t('getMobileApp')}
+          </div>
           <Link to="/auth/logging-out" style={getLinkStyle()}>
             {t('logOut')}
           </Link>

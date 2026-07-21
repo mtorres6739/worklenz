@@ -1,5 +1,5 @@
-import { createBrowserRouter, Navigate, RouteObject, useLocation } from 'react-router-dom';
-import { lazy, Suspense, memo, useMemo } from 'react';
+import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
+import { lazy, Suspense, memo } from 'react';
 import rootRoutes from './root-routes';
 import authRoutes from './auth-routes';
 import mainRoutes from './main-routes';
@@ -7,7 +7,6 @@ import notFoundRoute from './not-found-route';
 import accountSetupRoute from './account-setup-routes';
 import reportingRoutes from './reporting-routes';
 import clientPortalRoutes from './client-portal-routes';
-import { useAuthService } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/layouts/AuthenticatedLayout';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
@@ -62,26 +61,6 @@ export const AdminGuard = memo(({ children }: GuardProps) => {
 });
 
 AdminGuard.displayName = 'AdminGuard';
-
-export const LicenseExpiryGuard = memo(({ children }: GuardProps) => {
-  const { isLicenseExpired, location } = useAuthStatus();
-
-  const isAdminCenterRoute = location.pathname.includes('/worklenz/admin-center');
-  const isAccountDeletionRoute = location.pathname.includes('/worklenz/settings/account-deletion');
-  const isLicenseExpiredPage = location.pathname.includes('/worklenz/license-expired');
-
-  // NEW: Check if current route is a project view (with or without query params)
-  const isProjectViewRoute = /^\/worklenz\/projects\/[a-f0-9-]{36}/i.test(location.pathname);
-
-  // Redirect to license expired page if license is expired
-  // Except when on admin center, account deletion, or already on license expired page
-  if (isLicenseExpired && !isAdminCenterRoute && !isAccountDeletionRoute && !isLicenseExpiredPage && !isProjectViewRoute) {
-    return <Navigate to="/worklenz/license-expired" replace />;
-  }
-  return <>{children}</>;
-});
-
-LicenseExpiryGuard.displayName = 'LicenseExpiryGuard';
 
 export const SetupGuard = memo(({ children }: GuardProps) => {
   const { isAuthenticated, isSetupComplete, location } = useAuthStatus();
@@ -143,58 +122,7 @@ const wrapRoutes = (
   });
 };
 
-// Optimized static license expired component
-const StaticLicenseExpired = memo(() => {
-  return (
-    <div
-      style={{
-        marginTop: 65,
-        minHeight: '90vh',
-        backgroundColor: '#f5f5f5',
-        padding: '20px',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          padding: '30px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          textAlign: 'center',
-          maxWidth: '600px',
-        }}
-      >
-        <h1 style={{ fontSize: '24px', color: '#faad14', marginBottom: '16px' }}>
-          Your Worklenz trial has expired!
-        </h1>
-        <p style={{ fontSize: '16px', color: '#555', marginBottom: '24px' }}>
-          Please upgrade now to continue using Worklenz.
-        </p>
-        <button
-          style={{
-            backgroundColor: '#1890ff',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            fontSize: '16px',
-            cursor: 'pointer',
-          }}
-          onClick={() => (window.location.href = '/worklenz/admin-center/billing')}
-        >
-          Upgrade now
-        </button>
-      </div>
-    </div>
-  );
-});
-
-StaticLicenseExpired.displayName = 'StaticLicenseExpired';
-
-// Create route arrays (moved outside of useMemo to avoid hook violations)
+// Create route arrays.
 const publicRoutes = [...rootRoutes, ...authRoutes, notFoundRoute];
 
 // Apply combined guard to main routes that require both auth and setup completion
@@ -202,30 +130,6 @@ const protectedMainRoutes = wrapRoutes(mainRoutes, AuthAndSetupGuard);
 const adminRoutes = wrapRoutes(reportingRoutes, AdminGuard);
 const adminclientPortalRoutes = wrapRoutes(clientPortalRoutes, AdminGuard);
 const setupRoutes = wrapRoutes([accountSetupRoute], AuthGuard);
-
-// License expiry check function - only wrap top-level routes, not children
-const withLicenseExpiryCheck = (routes: RouteObject[]): RouteObject[] => {
-  return routes.map(route => {
-    const wrappedRoute = {
-      ...route,
-      element: (
-        <Suspense fallback={<SuspenseFallback />}>
-          <LicenseExpiryGuard>{route.element}</LicenseExpiryGuard>
-        </Suspense>
-      ),
-    };
-
-    // Don't wrap children - they'll inherit the guard from parent
-    if (route.children) {
-      wrappedRoute.children = route.children;
-    }
-
-    return wrappedRoute;
-  });
-};
-
-const licenseCheckedMainRoutes = withLicenseExpiryCheck(protectedMainRoutes);
-const licenseCheckedAdminRoutes = withLicenseExpiryCheck(adminRoutes);
 
 // Create optimized router with future flags for better performance
 const router = createBrowserRouter(
@@ -244,8 +148,8 @@ const router = createBrowserRouter(
         </ErrorBoundary>
       ),
       children: [
-        ...licenseCheckedMainRoutes,
-        ...licenseCheckedAdminRoutes,
+        ...protectedMainRoutes,
+        ...adminRoutes,
         ...adminclientPortalRoutes,
         ...setupRoutes,
       ],

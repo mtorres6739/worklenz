@@ -29,6 +29,7 @@ import { createCsrfRotation } from "./middlewares/csrf-rotation";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 import verifySnsMessage from "./middlewares/verify-sns-message";
+import { getJsonUploadBodyLimitBytes } from "./shared/self-hosted-capabilities";
 
 const app = express();
 
@@ -44,20 +45,27 @@ app.use(compression());
 app.use(logger("dev"));
 // Amazon SNS delivers signed JSON envelopes as text/plain. Keep this parser
 // scoped to the SES webhook surface so other text payloads remain untouched.
-app.use("/webhook/emails", express.json({
-  limit: "1mb",
-  type: ["application/json", "text/plain"],
-}));
-app.use(express.json({
-  limit: "50mb",
-  verify: (req: Request & { rawBody?: string }, _res, buf) => {
-    const url = req.originalUrl || req.url || "";
-    if (url.includes("/webhook/directpay/")) {
-      req.rawBody = buf.toString("utf8");
-    }
-  },
-}));
-app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+app.use(
+  "/webhook/emails",
+  express.json({
+    limit: "1mb",
+    type: ["application/json", "text/plain"],
+  }),
+);
+app.use(
+  express.json({
+    limit: getJsonUploadBodyLimitBytes(),
+    verify: (req: Request & { rawBody?: string }, _res, buf) => {
+      const url = req.originalUrl || req.url || "";
+      if (url.includes("/webhook/directpay/")) {
+        req.rawBody = buf.toString("utf8");
+      }
+    },
+  }),
+);
+app.use(
+  express.urlencoded({ extended: false, limit: getJsonUploadBodyLimitBytes() }),
+);
 app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(hpp());
 
@@ -118,21 +126,21 @@ const allowedOrigins = [
   ...(isProduction()
     ? []
     : [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:5000",
-      `http://localhost:5000`,
-      `https://appleid.apple.com`, // Allow Apple Sign-In OAuth requests
-    ]),
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+        `http://localhost:5000`,
+        `https://appleid.apple.com`, // Allow Apple Sign-In OAuth requests
+      ]),
 ];
 
 allowedOrigins.push(
   ...parseCsvOrigins(process.env.APP_ORIGIN),
   ...parseCsvOrigins(process.env.SERVER_CORS),
-  ...parseCsvOrigins(process.env.FRONTEND_URL)
+  ...parseCsvOrigins(process.env.FRONTEND_URL),
 );
 
 const corsOptions: cors.CorsOptions = {
@@ -141,12 +149,12 @@ const corsOptions: cors.CorsOptions = {
     if (!isProduction()) {
       return callback(null, true);
     }
-    
+
     // Non-browser clients do not send Origin. Cookie-authenticated browser requests do.
     if (!origin) {
       return callback(null, true);
     }
-    
+
     // If Origin header is present in production, validate it against whitelist
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -170,7 +178,7 @@ const corsOptions: cors.CorsOptions = {
     "Pragma",
     "pragma",
   ],
-  exposedHeaders: ["Set-Cookie", "X-CSRF-Token"]
+  exposedHeaders: ["Set-Cookie", "X-CSRF-Token"],
 };
 
 app.use(cors(corsOptions));
@@ -246,8 +254,11 @@ app.use((req, res, next) => {
   const baseUrl = req.baseUrl || "";
 
   // Always exclude webhooks (external services can't provide CSRF tokens)
-  if (path.startsWith("/webhook/") || originalUrl.startsWith("/webhook/") ||
-      originalUrl.includes("/webhook/directpay/")) {
+  if (
+    path.startsWith("/webhook/") ||
+    originalUrl.startsWith("/webhook/") ||
+    originalUrl.includes("/webhook/directpay/")
+  ) {
     log_error(`[CSRF] Excluding webhook: ${path}`);
     return next();
   }
@@ -392,13 +403,11 @@ app.get("/csrf-token", (req: Request, res: Response) => {
       .json({ done: true, message: "CSRF token refreshed", token });
   } catch (error: any) {
     log_error("[CSRF] Error generating token:", error);
-    res
-      .status(500)
-      .json({
-        done: false,
-        message: "Failed to generate CSRF token",
-        error: error?.message,
-      });
+    res.status(500).json({
+      done: false,
+      message: "Failed to generate CSRF token",
+      error: error?.message,
+    });
   }
 });
 
@@ -545,7 +554,8 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   // Send structured error response
   res.json({
     done: false,
-    message: (isProduction() && status >= 500) ? "Internal Server Error" : err.message,
+    message:
+      isProduction() && status >= 500 ? "Internal Server Error" : err.message,
     body: null,
     ...(process.env.NODE_ENV === "development" ? { stack: err.stack } : {}),
   });

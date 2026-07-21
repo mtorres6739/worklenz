@@ -13,6 +13,57 @@ export type UpgradeModalVariant =
   | 'fileSizeLimit'
   | 'customFields';
 
+export type SelfHostedCapabilityKey =
+  | 'unlimitedProjects'
+  | 'unlimitedTeams'
+  | 'unlimitedMembers'
+  | 'schedule'
+  | 'reporting'
+  | 'teamReports'
+  | 'projectInsights'
+  | 'roadmap'
+  | 'workload'
+  | 'allocations'
+  | 'projectPhases'
+  | 'projectPriorities'
+  | 'projectCategories'
+  | 'projectManagers'
+  | 'projectTaskRestrictions'
+  | 'taskTemplates'
+  | 'projectTemplates'
+  | 'recurringTasks'
+  | 'taskDependencies'
+  | 'taskArchive'
+  | 'taskSubscribers'
+  | 'billableTasks'
+  | 'activityHistory'
+  | 'customFields'
+  | 'organizationBranding'
+  | 'projectFinance'
+  | 'clientPortal'
+  | 'slack'
+  | 'oidc'
+  | 'microsoftTeams'
+  | 'github'
+  | 'googleDrive'
+  | 'googleCalendar'
+  | 'microsoftCalendar'
+  | 'curatedPlugins';
+
+export interface ISelfHostedCapabilities {
+  profile: 'self_hosted_full';
+  schemaVersion: 1;
+  capabilities: Record<SelfHostedCapabilityKey, boolean>;
+  limits: {
+    activeProjects: null;
+    teamMembers: null;
+    customFields: null;
+    historyDays: null;
+    storageBytes: null;
+    uploadBytes: number;
+  };
+}
+
 export interface IBusinessFeatures {
   /** Client portal, project finance, slack, org logo, etc. */
   hasBusinessAccess: boolean;
@@ -25,6 +76,9 @@ export interface IBusinessFeatures {
   planTrialDaysRemaining: number;
   /** Billable-task toggle is restricted (Free / Pro / AppSumo). */
   shouldRestrictBillable: boolean;
+  selfHosted: ISelfHostedCapabilities;
+  capabilitiesLoaded: boolean;
+  hasCapability: (capability: SelfHostedCapabilityKey) => boolean;
 }
 
 export interface IUpgradePrompt {

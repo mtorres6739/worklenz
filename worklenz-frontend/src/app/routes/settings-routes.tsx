@@ -7,17 +7,11 @@ import { useAuthService } from '@/hooks/useAuth';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
 import { SuspenseFallback } from '@/components/suspense-fallback/suspense-fallback';
 
-const SettingsGuard = ({
-  children,
-  itemKey,
-}: {
-  children: React.ReactNode;
-  itemKey: string;
-}) => {
+const SettingsGuard = ({ children, itemKey }: { children: React.ReactNode; itemKey: string }) => {
   const authService = useAuthService();
   const isOwnerOrAdmin = authService.isOwnerOrAdmin();
-  const { hasBusinessAccess } = useBusinessFeatures();
-  const accessibleSettings = getAccessibleSettings(isOwnerOrAdmin, hasBusinessAccess);
+  const { hasCapability } = useBusinessFeatures();
+  const accessibleSettings = getAccessibleSettings(isOwnerOrAdmin, hasCapability);
   const hasAccess = accessibleSettings.some(item => item.key === itemKey);
 
   if (!hasAccess) {

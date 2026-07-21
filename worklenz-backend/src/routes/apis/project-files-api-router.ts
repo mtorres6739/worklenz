@@ -31,7 +31,7 @@ const handleUpload = (
           new ServerResponse(
             false,
             null,
-            "Max file size is 100 MB per file.",
+            `Max file size is ${Math.floor(MAX_PROJECT_FILE_SIZE_BYTES / 1024 / 1024)} MB per file.`,
           ).withTitle("Upload failed!"),
         );
     }

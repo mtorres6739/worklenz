@@ -1,4 +1,4 @@
-export const MAX_FILE_SIZE_BYTES = 104_857_600; // 100 MB
+export const MAX_FILE_SIZE_BYTES = 262_144_000; // Self-hosted default: 250 MB
 
 export const BLOCKED_EXTENSIONS = [
   'exe',

@@ -18,7 +18,6 @@ import {
   Input,
   MenuProps,
   Popconfirm,
-  Popover,
   Table,
   TableProps,
   Tag,
@@ -55,26 +54,14 @@ import {
 } from '@/utils/role-permissions.utils';
 import PinRouteToNavbarButton from '@components/PinRouteToNavbarButton';
 import { message } from '@/shared/antd-imports';
-import { fetchBillingInfo } from '@/features/admin-center/admin-center.slice';
-import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
-import { useUpgradePrompt } from '@/worklenz-ee/hooks/use-upgrade-prompt';
-import { SeatLimitModal } from '@/components/common/seat-limit-modal/SeatLimitModal';
-import { useAppSumoTracking } from '@/hooks/useAppSumoTracking';
-import { AppSumoUpsellEvents } from '@/types/mixpanel-events.types';
 import './team-members-settings.css';
 
 const TeamMembersSettings = () => {
   const { t } = useTranslation('settings/team-members');
-  const { t: tCommon } = useTranslation('common');
   const dispatch = useAppDispatch();
   const { socket } = useSocket();
   const auth = useAuthService();
-  const currentSession = auth.getCurrentSession();
-  const { hasBusinessAccess } = useBusinessFeatures();
-  const { promptUpgrade } = useUpgradePrompt();
-  const isInviteRestricted = Boolean(currentSession?.is_expired);
   const refreshTeamMembers = useAppSelector(state => state.memberReducer.refreshTeamMembers);
-  const billingInfo = useAppSelector(state => state.adminCenterReducer.billingInfo);
 
   useDocumentTitle(t('title', { defaultValue: t('title') }));
 
@@ -86,34 +73,12 @@ const TeamMembersSettings = () => {
   const [selectedMembers, setSelectedMembers] = useState<ITeamMemberViewModel[]>([]);
   const [isBulkAssignDrawerVisible, setBulkAssignDrawerVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSeatLimitPopoverOpen, setIsSeatLimitPopoverOpen] = useState(false);
-  const { trackAppSumoEvent } = useAppSumoTracking();
-  const isAppSumoUser = billingInfo?.subscription_type?.toLowerCase().includes('appsumo') ?? false;
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: DEFAULT_PAGE_SIZE,
     field: 'name',
     order: 'asc',
   });
-  const [seatLimitModalOpen, setSeatLimitModalOpen] = useState(false);
-  const [seatLimitData, setSeatLimitData] = useState<{
-    current_members: number;
-    plan_seat_limit: number;
-    business_plan_limit: number;
-    is_appsumo_user: boolean;
-  } | null>(null);
-
-  // Only count active members for seat usage (deactivated members don't consume seats)
-  const totalUsedSeats = billingInfo?.total_used ?? 0;
-  const totalAvailableSeats = billingInfo?.total_seats ?? 0;
-  const hasReachedSeatLimit =
-    !hasBusinessAccess &&
-    totalAvailableSeats > 0 &&
-    totalUsedSeats >= totalAvailableSeats;
-  // Show warning when total roster (including deactivated) exceeds the plan seat limit,
-  // indicating some members had to be deactivated to stay within the limit.
-  const isSeatUsageOverLimit =
-    totalAvailableSeats > 0 && (model.total ?? 0) > totalAvailableSeats;
 
   const getTeamMembers = useCallback(async () => {
     try {
@@ -135,10 +100,6 @@ const TeamMembersSettings = () => {
     }
   }, [pagination, searchQuery]);
 
-  useEffect(() => {
-    dispatch(fetchBillingInfo());
-  }, [dispatch]);
-
   const handleStatusChange = async (record: ITeamMemberViewModel) => {
     try {
       setIsLoading(true);
@@ -148,25 +109,19 @@ const TeamMembersSettings = () => {
         record.email || ''
       );
 
-      // When re-activating a member, the backend may reject due to seat limit
-      if (!res.done && res.body?.error_code === 'SEAT_LIMIT_EXCEEDED') {
-        setSeatLimitData(res.body);
-        setSeatLimitModalOpen(true);
-        return;
-      }
-
       if (res.done) {
         await getTeamMembers();
-        dispatch(fetchBillingInfo());
         const pendingTeamInvite = localStorage.getItem('pendingTeamInvite');
         if (pendingTeamInvite && !record.active) {
           try {
             const inviteData = JSON.parse(pendingTeamInvite);
             const inviteRes = await teamMembersApiService.createTeamMember(inviteData);
             if (inviteRes.done) {
-              message.success(t('memberDeactivatedInviteSent', { 
-                defaultValue: t('memberDeactivatedInviteSent')
-              }));
+              message.success(
+                t('memberDeactivatedInviteSent', {
+                  defaultValue: t('memberDeactivatedInviteSent'),
+                })
+              );
               localStorage.removeItem('pendingTeamInvite');
             }
           } catch (error) {
@@ -174,27 +129,33 @@ const TeamMembersSettings = () => {
             localStorage.removeItem('pendingTeamInvite');
           }
         }
-        
+
         // Check for pending project invite and auto-send after deactivation
         const pendingProjectInvite = localStorage.getItem('pendingProjectInvite');
         if (pendingProjectInvite && !record.active) {
           try {
             const inviteData = JSON.parse(pendingProjectInvite);
             // Send invites for each email in the pending project invite
-            const invitePromises = inviteData.emails.map((email: string) => 
+            const invitePromises = inviteData.emails.map((email: string) =>
               projectMembersApiService.inviteByEmail({
                 email: email.trim(),
                 project_id: inviteData.projectId,
-                role_name: inviteData.access === 'team-lead' ? 'TEAM_LEAD' : 
-                          inviteData.access === 'admin' ? 'ADMIN' : 'MEMBER',
+                role_name:
+                  inviteData.access === 'team-lead'
+                    ? 'TEAM_LEAD'
+                    : inviteData.access === 'admin'
+                      ? 'ADMIN'
+                      : 'MEMBER',
                 is_admin: inviteData.access === 'admin',
               })
             );
             await Promise.all(invitePromises);
-            message.success(t('memberDeactivatedProjectInviteSent', { 
-              defaultValue: t('memberDeactivatedProjectInviteSent'),
-              projectName: inviteData.projectName,
-            }));
+            message.success(
+              t('memberDeactivatedProjectInviteSent', {
+                defaultValue: t('memberDeactivatedProjectInviteSent'),
+                projectName: inviteData.projectName,
+              })
+            );
             localStorage.removeItem('pendingProjectInvite');
           } catch (error) {
             // Error sending pending project invite
@@ -207,30 +168,6 @@ const TeamMembersSettings = () => {
     }
   };
 
-  const handleSeatLimitUpgrade = () => {
-    setSeatLimitModalOpen(false);
-    setSeatLimitData(null);
-    promptUpgrade();
-  };
-
-  const handleSeatLimitDeactivate = () => {
-    setSeatLimitModalOpen(false);
-    setSeatLimitData(null);
-    if (isAppSumoUser) {
-      trackAppSumoEvent(AppSumoUpsellEvents.SEAT_LIMIT_DEACTIVATE_CHOSEN, { feature: 'team_members' });
-    }
-    // Scroll to the members table so the user can deactivate someone
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleSeatLimitModalClose = () => {
-    setSeatLimitModalOpen(false);
-    setSeatLimitData(null);
-    if (isAppSumoUser) {
-      trackAppSumoEvent(AppSumoUpsellEvents.SEAT_LIMIT_INVITE_CANCELLED, { feature: 'team_members' });
-    }
-  };
-
   const handleDeleteMember = async (record: ITeamMemberViewModel) => {
     if (!record.id) return;
     try {
@@ -238,7 +175,6 @@ const TeamMembersSettings = () => {
       const res = await teamMembersApiService.delete(record.id);
       if (res.done) {
         await getTeamMembers();
-        dispatch(fetchBillingInfo());
       }
     } finally {
       setIsLoading(false);
@@ -344,8 +280,7 @@ const TeamMembersSettings = () => {
 
   useEffect(() => {
     handleRefresh();
-    dispatch(fetchBillingInfo());
-  }, [refreshTeamMembers, handleRefresh, dispatch]);
+  }, [refreshTeamMembers, handleRefresh]);
 
   useEffect(() => {
     getTeamMembers();
@@ -708,34 +643,6 @@ const TeamMembersSettings = () => {
               justify="flex-end"
               style={{ width: '100%', maxWidth: 500 }}
             >
-              <Flex align="center" gap={4}>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {totalAvailableSeats && totalAvailableSeats > 0
-                    ? t('seatUsageWithLimitText', {
-                        defaultValue: t('seatUsageWithLimitText'),
-                        used: Math.min(totalUsedSeats, totalAvailableSeats),
-                        total: totalAvailableSeats,
-                      })
-                    : totalUsedSeats >= 0
-                      ? t('seatUsageText', {
-                          defaultValue: t('seatUsageText'),
-                          used: totalUsedSeats,
-                        })
-                      : t('seatUsageLoading', {
-                          defaultValue: t('seatUsageLoading'),
-                        })}
-                </Typography.Text>
-                {isSeatUsageOverLimit && (
-                  <Tooltip
-                    title={t('seatUsageOverLimitTooltip', {
-                      defaultValue:
-                        'Current members exceed your plan limit. Deactivated members are not counted toward your seat usage.',
-                    })}
-                  >
-                    <ExclamationCircleFilled style={{ color: colors.vibrantOrange, fontSize: 14 }} />
-                  </Tooltip>
-                )}
-              </Flex>
               <Tooltip title={t('pinTooltip')}>
                 <Button
                   shape="circle"
@@ -752,92 +659,9 @@ const TeamMembersSettings = () => {
                 style={{ maxWidth: 250 }}
                 suffix={<SearchOutlined />}
               />
-              <Popover
-                trigger="click"
-                placement="bottomRight"
-                open={isSeatLimitPopoverOpen}
-                onOpenChange={open => {
-                  // Only allow opening via the button when seat limit is reached;
-                  // always allow closing (open === false) so outside-click works.
-                  if (!open || hasReachedSeatLimit) {
-                    setIsSeatLimitPopoverOpen(open);
-                    if (isAppSumoUser) {
-                      trackAppSumoEvent(
-                        open ? AppSumoUpsellEvents.UPGRADE_PROMPT_SHOWN : AppSumoUpsellEvents.UPGRADE_PROMPT_DISMISSED,
-                        { feature: 'seat_limit_team_members' }
-                      );
-                    }
-                  }
-                }}
-                title={
-                  <Flex align="center" justify="space-between" style={{ width: 240 }}>
-                    <Typography.Text strong>
-                      {t('seatLimitPopoverTitle', { defaultValue: t('seatLimitPopoverTitle') })}
-                    </Typography.Text>
-                    <Button
-                      type="text"
-                      size="small"
-                      aria-label={t('closePopover', { defaultValue: t('closePopover') })}
-                      onClick={event => {
-                        event.stopPropagation();
-                        setIsSeatLimitPopoverOpen(false);
-                      }}
-                    >
-                      ×
-                    </Button>
-                  </Flex>
-                }
-                content={
-                  <Flex vertical gap={12} style={{ maxWidth: 280 }}>
-                    <Typography.Text>
-                      {t('workspaceSeatLimitPopoverBody', {
-                        defaultValue:
-                          t('workspaceSeatLimitPopoverBody'),
-                        used: totalUsedSeats,
-                        total: totalAvailableSeats,
-                      })}
-                    </Typography.Text>
-                    <Button
-                      type="primary"
-                      onClick={() => {
-                        setIsSeatLimitPopoverOpen(false);
-                        if (isAppSumoUser) {
-                          trackAppSumoEvent(AppSumoUpsellEvents.UPGRADE_NOW_CLICKED, { feature: 'seat_limit_team_members' });
-                          trackAppSumoEvent(AppSumoUpsellEvents.SEAT_LIMIT_ADD_MORE_CLICKED, { feature: 'team_members' });
-                        }
-                        promptUpgrade();
-                      }}
-                    >
-                      {t('seatLimitPopoverCta', { defaultValue: t('seatLimitPopoverCta') })}
-                    </Button>
-                  </Flex>
-                }
-              >
-                <Tooltip
-                  title={
-                    isInviteRestricted
-                      ? tCommon('license-expired-subtitle', {
-                          defaultValue:
-                            'Your Worklenz subscription has ended. Please renew to continue enjoying all features.',
-                        })
-                      : ''
-                  }
-                >
-                  <Button
-                    type="primary"
-                    disabled={isInviteRestricted}
-                    onClick={() => {
-                      if (isInviteRestricted) return;
-                      if (!hasReachedSeatLimit) {
-                        dispatch(toggleInviteMemberDrawer());
-                      }
-                      // When hasReachedSeatLimit, the Popover's trigger="click" handles opening
-                    }}
-                  >
-                    {t('addMoreSeats', { defaultValue: t('addMoreSeats') })}
-                  </Button>
-                </Tooltip>
-              </Popover>
+              <Button type="primary" onClick={() => dispatch(toggleInviteMemberDrawer())}>
+                {t('addMember', { defaultValue: 'Add member' })}
+              </Button>
               <Tooltip title={t('pinTooltip')} trigger={'hover'}>
                 <PinRouteToNavbarButton
                   name={t('title')}
@@ -940,19 +764,6 @@ const TeamMembersSettings = () => {
           initialRoleName={selectedMemberRole || undefined}
         />,
         document.body
-      )}
-
-      {seatLimitData && (
-        <SeatLimitModal
-          open={seatLimitModalOpen}
-          onClose={handleSeatLimitModalClose}
-          currentMembers={seatLimitData.current_members}
-          planLimit={seatLimitData.plan_seat_limit}
-          businessLimit={seatLimitData.business_plan_limit}
-          isAppSumoUser={seatLimitData.is_appsumo_user}
-          onUpgrade={handleSeatLimitUpgrade}
-          onDeactivate={handleSeatLimitDeactivate}
-        />
       )}
     </Flex>
   );

@@ -50,9 +50,7 @@ const AccountDeletion = lazy(() => import('@/pages/settings/account-deletion/Acc
 const IntegrationsSettings = lazy(
   () => import('@/pages/settings/integrations/IntegrationsSettings')
 );
-const MobileAppSettings = lazy(
-  () => import('@/pages/settings/mobile-app/mobile-app-settings')
-);
+const MobileAppSettings = lazy(() => import('@/pages/settings/mobile-app/mobile-app-settings'));
 const ConfigurationSettings = lazy(
   () => import('@/pages/settings/configuration/configuration-settings')
 );
@@ -69,8 +67,8 @@ type SettingMenuItem = {
   element: ReactNode;
   adminOnly?: boolean;
   isDangerous?: boolean;
-  businessPlanRequired?: boolean;
   showInSidebar?: boolean;
+  capability?: 'projectFinance';
 };
 // settings all element items use for sidebar and routes
 export const settingsItems: SettingMenuItem[] = [
@@ -233,7 +231,7 @@ export const settingsItems: SettingMenuItem[] = [
     groupDefaultValue: 'Financial & Billing',
     icon: React.createElement(DollarCircleOutlined),
     element: React.createElement(RateCardSettings),
-    businessPlanRequired: true,
+    capability: 'projectFinance',
   },
   {
     key: 'teams',
@@ -267,7 +265,6 @@ export const settingsItems: SettingMenuItem[] = [
     icon: React.createElement(SettingOutlined),
     element: React.createElement(ConfigurationSettings),
     adminOnly: true,
-    businessPlanRequired: false, // Visible to all admins; upgrade prompt shown inside
   },
   // Danger zone - always at the bottom
   {
@@ -283,15 +280,17 @@ export const settingsItems: SettingMenuItem[] = [
   },
 ];
 
-export const getAccessibleSettings = (isAdmin: boolean, hasBusinessAccess: boolean) => {
+export const getAccessibleSettings = (
+  isAdmin: boolean,
+  hasCapability: (capability: 'projectFinance') => boolean = () => true
+) => {
   return settingsItems.filter(item => {
     // Check admin requirement
     if (item.adminOnly && !isAdmin) {
       return false;
     }
 
-    // Check business plan requirement
-    if (item.businessPlanRequired && !hasBusinessAccess) return false;
+    if (item.capability && !hasCapability(item.capability)) return false;
 
     return true;
   });

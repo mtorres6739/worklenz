@@ -1,17 +1,41 @@
-import { IBusinessFeatures } from '../types/business-features.types';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { IBusinessFeatures, SelfHostedCapabilityKey } from '../types/business-features.types';
+import {
+  getCapabilitiesSnapshot,
+  loadSelfHostedCapabilities,
+  subscribeToCapabilities,
+} from '../services/self-hosted-capabilities';
 
 /**
- * CE stub — the open-source build has no business plan, so every business feature is off and
- * billable is restricted. No session/Redux access (CE must not import from `src/`).
+ * The SDM CE fork has no SaaS subscription. Core self-hosted features are unrestricted, while
+ * server-backed modules are exposed only when the authenticated capability endpoint enables them.
  */
 export function useBusinessFeatures(): IBusinessFeatures {
+  const snapshot = useSyncExternalStore(
+    subscribeToCapabilities,
+    getCapabilitiesSnapshot,
+    getCapabilitiesSnapshot
+  );
+
+  useEffect(() => {
+    void loadSelfHostedCapabilities();
+  }, []);
+
+  const hasCapability = useCallback(
+    (capability: SelfHostedCapabilityKey) => snapshot.value.capabilities[capability] === true,
+    [snapshot.value]
+  );
+
   return {
-    hasBusinessAccess: false,
-    isBusinessPlan: false,
-    isEnterprisePlan: false,
-    isFreeUser: true,
+    hasBusinessAccess: true,
+    isBusinessPlan: true,
+    isEnterprisePlan: true,
+    isFreeUser: false,
     isOnBusinessTrial: false,
     planTrialDaysRemaining: 0,
-    shouldRestrictBillable: true,
+    shouldRestrictBillable: false,
+    selfHosted: snapshot.value,
+    capabilitiesLoaded: snapshot.loaded,
+    hasCapability,
   };
 }

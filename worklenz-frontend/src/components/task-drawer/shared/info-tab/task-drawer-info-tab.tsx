@@ -1,10 +1,4 @@
-import {
-  Collapse,
-  CollapseProps,
-  Flex,
-  Skeleton,
-  Typography,
-} from '@/shared/antd-imports';
+import { Collapse, CollapseProps, Flex, Skeleton, Typography } from '@/shared/antd-imports';
 import React, { useEffect, useState, useRef } from 'react';
 import { InboxOutlined } from '@ant-design/icons';
 import DescriptionEditor from './description-editor';
@@ -34,11 +28,7 @@ import taskCommentsApiService from '@/api/tasks/task-comments.api.service';
 import { ITaskViewModel } from '@/types/tasks/task.types';
 import TaskDrawerCustomFields from './details/task-drawer-custom-fields/task-drawer-custom-fields';
 import { hasDrawerSupportedCustomFields } from '@/utils/task-custom-columns';
-import { useAuthService } from '@/hooks/useAuth';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
-import { useUpgradePrompt } from '@/worklenz-ee/hooks/use-upgrade-prompt';
-import { useAppSumoTracking } from '@/hooks/useAppSumoTracking';
-import { AppSumoUpsellEvents } from '@/types/mixpanel-events.types';
 
 interface TaskDrawerInfoTabProps {
   t: TFunction;
@@ -46,18 +36,10 @@ interface TaskDrawerInfoTabProps {
 }
 
 const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
-  const FREE_ATTACHMENT_SIZE_LIMIT_MB = 25;
-  const BUSINESS_ATTACHMENT_SIZE_LIMIT_MB = 250;
   const dispatch = useAppDispatch();
-  const currentSession = useAuthService().getCurrentSession();
-  const { hasBusinessAccess } = useBusinessFeatures();
-  const { promptUpgrade } = useUpgradePrompt();
-  const { trackAppSumoEvent } = useAppSumoTracking();
-  const isAppSumoUser = String(currentSession?.subscription_type || '').toLowerCase().includes('appsumo');
-  const attachmentSizeLimitMb = hasBusinessAccess
-    ? BUSINESS_ATTACHMENT_SIZE_LIMIT_MB
-    : FREE_ATTACHMENT_SIZE_LIMIT_MB;
-  const attachmentSizeLimitBytes = attachmentSizeLimitMb * 1024 * 1024;
+  const { selfHosted } = useBusinessFeatures();
+  const attachmentSizeLimitBytes = selfHosted.limits.uploadBytes;
+  const attachmentSizeLimitMb = Math.floor(attachmentSizeLimitBytes / 1024 / 1024);
 
   const { projectId } = useAppSelector(state => state.projectReducer);
   const { taskFormViewModel, loadingTask, selectedTaskId } = useAppSelector(
@@ -85,7 +67,14 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
   const dragCounterRef = useRef(0);
 
   // Controlled collapse keys so we can auto-expand attachments on drop
-  const defaultCollapseKeys = ['details', 'description', 'subTasks', 'dependencies', 'attachments', 'comments'];
+  const defaultCollapseKeys = [
+    'details',
+    'description',
+    'subTasks',
+    'dependencies',
+    'attachments',
+    'comments',
+  ];
   const [collapseActiveKeys, setCollapseActiveKeys] = useState<string[]>(defaultCollapseKeys);
 
   // FIX: Track the previous task ID so we only re-fetch when a REAL task is
@@ -101,15 +90,6 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
 
     const oversizedFiles = files.filter(file => file.size > attachmentSizeLimitBytes);
     if (oversizedFiles.length > 0) {
-      if (!hasBusinessAccess) {
-        if (isAppSumoUser) {
-          trackAppSumoEvent(AppSumoUpsellEvents.OVERSIZED_FILE_BLOCKED, {
-            feature: 'task_attachments',
-            file_count: oversizedFiles.length,
-          });
-        }
-        promptUpgrade();
-      }
       return;
     }
 
@@ -173,9 +153,7 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
     if (files.length === 0) return;
 
     // Auto-expand the attachments panel if it is currently collapsed
-    setCollapseActiveKeys(prev =>
-      prev.includes('attachments') ? prev : [...prev, 'attachments']
-    );
+    setCollapseActiveKeys(prev => (prev.includes('attachments') ? prev : [...prev, 'attachments']));
 
     handleFilesSelected(files);
   };
@@ -273,18 +251,12 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
             attachments={taskAttachments}
             onDelete={() => fetchTaskAttachments()}
             onUpload={() => fetchTaskAttachments()}
-            onUpgradeRequested={() => {
-              if (isAppSumoUser) {
-                trackAppSumoEvent(AppSumoUpsellEvents.TASK_ATTACHMENT_UPGRADE_CLICKED, { feature: 'task_attachments' });
-              }
-              promptUpgrade();
-            }}
             t={t}
             loadingTask={loadingTask}
             uploading={processingUpload}
             handleFilesSelected={handleFilesSelected}
             maxFileSizeMb={attachmentSizeLimitMb}
-            showUpgradeLink={!hasBusinessAccess}
+            showUpgradeLink={false}
           />
         </Flex>
       ),
@@ -442,7 +414,11 @@ const TaskDrawerInfoTab = ({ t, canCreateTask }: TaskDrawerInfoTabProps) => {
           <div className="task-drawer-info-tab-drop-overlay">
             <div className="task-drawer-info-tab-drop-overlay-content">
               <InboxOutlined className="task-drawer-info-tab-drop-icon" />
-              <span>{t('taskInfoTab.attachments.dropFilesHere', { defaultValue: 'Drop files here to attach' })}</span>
+              <span>
+                {t('taskInfoTab.attachments.dropFilesHere', {
+                  defaultValue: 'Drop files here to attach',
+                })}
+              </span>
             </div>
           </div>
         )}

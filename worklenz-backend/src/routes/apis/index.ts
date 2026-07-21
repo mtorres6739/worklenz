@@ -70,6 +70,10 @@ import supportApiRouter from "./support-api-router";
 import accountApiRouter from "./account-api-router";
 import onboardingApiRouter from "./onboarding-api-router";
 import importsApiRouter from "./imports-api-router";
+import systemApiRouter from "./system-api-router";
+import rateCardApiRouter from "./rate-card-api-router";
+import projectRateCardApiRouter from "./project-rate-card-api-router";
+import projectFinanceApiRouter from "./project-finance-api-router";
 
 import business from "../../business";
 
@@ -166,6 +170,10 @@ api.use("/holidays", holidayApiRouter);
 api.use("/logs", userActivityLogsApiRouter);
 
 api.use("/imports", importsApiRouter);
+api.use("/system", systemApiRouter);
+api.use("/ratecard", rateCardApiRouter);
+api.use("/project-ratecard", projectRateCardApiRouter);
+api.use("/project-finance", projectFinanceApiRouter);
 
 // Business-plan (EE) routes — billing, subscriptions, finance, rate cards, client portal, slack.
 // No-op in the open-core (CE) build.

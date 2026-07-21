@@ -40,7 +40,8 @@ interface ApiResponse<T> {
 export function SlackIntegration() {
   const { t } = useTranslation('settings/slack-integration');
   const [messageApi, contextHolder] = message.useMessage();
-  const { hasBusinessAccess } = useBusinessFeatures();
+  const { hasCapability } = useBusinessFeatures();
+  const hasBusinessAccess = hasCapability('slack');
   const [isConnected, setIsConnected] = useState(false);
   const [workspace, setWorkspace] = useState<{
     id: string;

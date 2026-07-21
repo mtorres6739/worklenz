@@ -25,7 +25,7 @@ class AuthService {
   }
 
   public isExpired(): boolean {
-    return !!this.getCurrentSession()?.is_expired;
+    return false;
   }
 
   public setCurrentSession(user: ILocalSession): void {

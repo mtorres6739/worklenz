@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  self-hosted-gates:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-self-hosted-gates.js
+
   backend:
     runs-on: ubuntu-24.04
     services:
@@ -60,6 +69,9 @@ jobs:
           psql -Atc "SELECT to_regclass('public.import_jobs') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.task_template_imports') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.task_template_import_items') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.finance_rate_cards') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.project_rate_card_roles') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.finance_work_log_rate_snapshots') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regprocedure('public.can_update_task(uuid,uuid)') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'task_templates' AND column_name = 'locked_at')" | grep -qx t
           psql -v ON_ERROR_STOP=1 <<'SQL'
@@ -122,6 +134,10 @@ jobs:
             FROM projects p
             WHERE p.id = created_project_id;
 
+            PERFORM p.calculation_method, p.finance_hours_per_day
+            FROM projects p
+            WHERE p.id = created_project_id;
+
             PERFORM pm.task_list_group_by, pm.board_group_by
             FROM project_members pm
             WHERE pm.project_id = created_project_id;
@@ -168,6 +184,21 @@ jobs:
               RAISE EXCEPTION 'Fresh CE task could not be created';
             END IF;
 
+            PERFORM t.fixed_cost, t.estimated_man_days
+            FROM tasks t
+            WHERE t.id = created_task_id;
+
+            INSERT INTO task_work_log(time_spent, task_id, user_id)
+            VALUES (3600, created_task_id, owner_id);
+            IF NOT EXISTS (
+              SELECT 1
+              FROM finance_work_log_rate_snapshots fwrs
+              JOIN task_work_log twl ON twl.id = fwrs.work_log_id
+              WHERE twl.task_id = created_task_id
+            ) THEN
+              RAISE EXCEPTION 'Finance work-log rate snapshot was not captured';
+            END IF;
+
             PERFORM log_project_activity_i18n(
               team_id, created_project_id, owner_id,
               'activityLogs.project.created', '{}'::JSONB, 'CI Project'
@@ -192,7 +223,7 @@ jobs:
           ROLLBACK;
           SQL
       - name: Production dependency gate
-        run: npm audit --omit=dev --audit-level=critical
+        run: npm audit --omit=dev --audit-level=high
 
   frontend:
     runs-on: ubuntu-24.04
@@ -221,7 +252,7 @@ jobs:
           src/utils/service-worker-security.test.ts
           src/api/task-templates/task-templates.api.service.test.ts
       - name: Production dependency gate
-        run: npm audit --omit=dev --audit-level=critical
+        run: npm audit --omit=dev --audit-level=high
 
   security:
     runs-on: ubuntu-24.04

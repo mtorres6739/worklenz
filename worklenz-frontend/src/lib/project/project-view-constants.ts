@@ -220,16 +220,8 @@ export const getFilteredTabItems = (
     .map(item => {
       // Handle finance tab specially
       if (item.key === 'finance') {
-        // If user has finance permission but no business access, show tab as disabled
-        if (hasFinancePermission && !hasBusinessAccess) {
-          return {
-            ...item,
-            disabled: true,
-            disabledReason: i18n.t('common:business-plan-upgrade'),
-            // Keep placeholder element for disabled finance tab to prevent loading
-            element: React.createElement('div'),
-          };
-        }
+        // Unreleased server-backed modules fail closed and do not appear as paywalls.
+        if (!hasBusinessAccess) return null;
         // If user has no finance permission, hide the tab
         if (!hasFinancePermission) {
           return null;

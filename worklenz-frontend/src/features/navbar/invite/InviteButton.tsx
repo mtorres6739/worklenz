@@ -13,22 +13,14 @@ const InviteButton = () => {
   const dispatch = useAppDispatch();
   const authService = useAuthService();
   const currentSession = authService.getCurrentSession();
-  const isInviteRestricted = Boolean(currentSession?.is_expired);
   const currentRole = getSessionRoleName(currentSession);
   const canInviteMembers = ROLE_DEFINITIONS[currentRole].canInviteMembers;
 
   // localization
   const { t } = useTranslation('navbar');
-  const { t: tCommon } = useTranslation('common');
-
-  const inviteTooltip = isInviteRestricted
-    ? tCommon('license-expired-subtitle', {
-        defaultValue:
-          'Your Worklenz subscription has ended. Please renew to continue enjoying all features.',
-      })
-    : t('inviteTooltip', {
-        defaultValue: 'Invite team members',
-      });
+  const inviteTooltip = t('inviteTooltip', {
+    defaultValue: 'Invite team members',
+  });
 
   if (!canInviteMembers) {
     return null;
@@ -44,9 +36,7 @@ const InviteButton = () => {
           borderColor: colors.skyBlue,
           padding: '10px 16px',
         }}
-        disabled={isInviteRestricted}
         onClick={() => {
-          if (isInviteRestricted) return;
           dispatch(toggleInviteMemberDrawer());
         }}
       >
