@@ -348,6 +348,7 @@ jobs:
           src/utils/service-worker-security.test.ts
           src/utils/document-branding.test.ts
           src/api/task-templates/task-templates.api.service.test.ts
+          src/layouts/client-portal-layout.test.tsx
           src/pages/auth/__tests__/LoginPage.test.tsx
       - name: Production dependency gate
         run: npm audit --omit=dev --audit-level=high

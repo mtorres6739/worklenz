@@ -23,11 +23,27 @@ const ClientPortalLayout = () => {
   // Auth and business access check
   const auth = useAuthService();
   const { hasCapability, capabilitiesLoaded } = useBusinessFeatures();
-  const hasBusinessAccess = hasCapability('clientPortal');
+  const hasClientPortalAccess = hasCapability('clientPortal');
   const { trackMixpanelEvent } = useMixpanelTracking();
+  const isAuthenticated = auth.isAuthenticated();
+
+  // Hooks must run in the same order while authentication and capabilities load.
+  // Keeping these above the loading/redirect branches prevents React error #310
+  // when capabilitiesLoaded changes from false to true after the first render.
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isAuthenticated && capabilitiesLoaded && hasClientPortalAccess) {
+      trackMixpanelEvent(evt_client_portal_viewed);
+    }
+  }, [capabilitiesLoaded, hasClientPortalAccess, isAuthenticated, trackMixpanelEvent]);
 
   // Redirect unauthorized users to main dashboard
-  if (!auth.isAuthenticated()) {
+  if (!isAuthenticated) {
     return <Navigate to="/auth/signin" replace />;
   }
 
@@ -35,21 +51,9 @@ const ClientPortalLayout = () => {
     return <Spin size="large" fullscreen />;
   }
 
-  if (!hasBusinessAccess) {
+  if (!hasClientPortalAccess) {
     return <Navigate to="/worklenz/home" replace />;
   }
-
-  // Auto-collapse sidebar on mobile
-  useEffect(() => {
-    if (isMobile) {
-      setSidebarCollapsed(true);
-    }
-  }, [isMobile]);
-
-  // Track client portal view
-  useEffect(() => {
-    trackMixpanelEvent(evt_client_portal_viewed);
-  }, [trackMixpanelEvent]);
 
   const sidebarWidth = sidebarCollapsed ? 80 : 280;
   const contentPadding = isDesktop ? 32 : isTablet ? 24 : 16;

@@ -18,6 +18,10 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      {
+        find: /^@\/worklenz-ee\/(.*)/,
+        replacement: path.resolve(__dirname, './worklenz-ce/$1'),
+      },
       { find: '@', replacement: path.resolve(__dirname, './src') },
       { find: '@components', replacement: path.resolve(__dirname, './src/components') },
       { find: '@features', replacement: path.resolve(__dirname, './src/features') },
