@@ -35,6 +35,7 @@ export interface PortalSession {
   capabilities: {
     services: boolean;
     requests: boolean;
+    requestNotifications: boolean;
   };
 }
 
@@ -149,6 +150,23 @@ export interface PortalRequestAttachment {
   can_delete?: boolean;
 }
 
+export interface PortalNotification {
+  id: string;
+  request_id: string;
+  req_no: string;
+  event_type:
+    | 'request_created'
+    | 'request_status_updated'
+    | 'request_assigned'
+    | 'request_comment_added'
+    | 'request_attachment_added';
+  title: string;
+  message: string;
+  event_data: Record<string, unknown>;
+  read_at?: string | null;
+  created_at: string;
+}
+
 const baseQuery = fetchBaseQuery({
   baseUrl: `${config.apiUrl}/api/client-portal`,
   credentials: 'include',
@@ -177,6 +195,7 @@ export const portalClientApi = createApi({
     'PortalRequests',
     'PortalRequestComments',
     'PortalRequestAttachments',
+    'PortalNotifications',
   ],
   endpoints: builder => ({
     getSession: builder.query<PortalSession, void>({
@@ -392,6 +411,42 @@ export const portalClientApi = createApi({
         invalidatesTags: (_result, _error, { id }) => [{ type: 'PortalRequestAttachments', id }],
       }
     ),
+    getPortalNotifications: builder.query<
+      { notifications: PortalNotification[]; total: number },
+      void
+    >({
+      query: () => '/notifications',
+      transformResponse: (
+        response: ServerResponse<{ notifications: PortalNotification[]; total: number }>
+      ) => response.body,
+      providesTags: ['PortalNotifications'],
+    }),
+    getPortalNotificationUnreadCount: builder.query<number, void>({
+      query: () => '/notifications/unread-count',
+      transformResponse: (response: ServerResponse<number>) => response.body,
+      providesTags: ['PortalNotifications'],
+    }),
+    markPortalNotificationRead: builder.mutation<
+      { id: string; read_at: string },
+      string
+    >({
+      query: id => ({
+        url: `/notifications/${id}/read`,
+        method: 'PUT',
+      }),
+      transformResponse: (
+        response: ServerResponse<{ id: string; read_at: string }>
+      ) => response.body,
+      invalidatesTags: ['PortalNotifications'],
+    }),
+    markAllPortalNotificationsRead: builder.mutation<{ updated: number }, void>({
+      query: () => ({
+        url: '/notifications/read-all',
+        method: 'PUT',
+      }),
+      transformResponse: (response: ServerResponse<{ updated: number }>) => response.body,
+      invalidatesTags: ['PortalNotifications'],
+    }),
   }),
 });
 
@@ -422,4 +477,8 @@ export const {
   useUploadRequestAttachmentMutation,
   useDownloadRequestAttachmentMutation,
   useDeleteRequestAttachmentMutation,
+  useGetPortalNotificationsQuery,
+  useGetPortalNotificationUnreadCountQuery,
+  useMarkPortalNotificationReadMutation,
+  useMarkAllPortalNotificationsReadMutation,
 } = portalClientApi;

@@ -95,6 +95,8 @@ class PortalSocket {
     this.acks = new Map();
     this.nextAck = 1;
     this.closed = false;
+    this.requestEvents = [];
+    this.requestEventWaiters = [];
   }
 
   async connect() {
@@ -122,6 +124,11 @@ class PortalSocket {
             this.ready = payload[1];
             clearTimeout(timeout);
             resolve();
+          }
+          if (payload[0] === "portal:request-event") {
+            const waiter = this.requestEventWaiters.shift();
+            if (waiter) waiter(payload[1]);
+            else this.requestEvents.push(payload[1]);
           }
           return;
         }
@@ -162,6 +169,30 @@ class PortalSocket {
         resolve();
       });
     });
+  }
+
+  async waitForRequestEvent(timeoutMs = 5000) {
+    if (this.requestEvents.length) return this.requestEvents.shift();
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        const index = this.requestEventWaiters.indexOf(onEvent);
+        if (index >= 0) this.requestEventWaiters.splice(index, 1);
+        reject(new Error("Portal request event timed out"));
+      }, timeoutMs);
+      const onEvent = event => {
+        clearTimeout(timeout);
+        resolve(event);
+      };
+      this.requestEventWaiters.push(onEvent);
+    });
+  }
+
+  async expectNoRequestEvent(timeoutMs = 750) {
+    if (this.requestEvents.length) {
+      throw new Error("Foreign portal request event was received");
+    }
+    await new Promise(resolve => setTimeout(resolve, timeoutMs));
+    invariant(this.requestEvents.length === 0, "Foreign portal request event was received");
   }
 
   close() {
@@ -311,6 +342,21 @@ async function seed() {
         }),
       ],
     );
+    const portalNotification = await db.query(
+      `INSERT INTO portal_notifications
+         (team_id, client_id, membership_id, request_id, event_type, title, message)
+       VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID,
+               'request_status_updated', $5, $6)
+       RETURNING id`,
+      [
+        teamId,
+        clientId,
+        membership.rows[0].id,
+        portalRequest.rows[0].id,
+        `Portal ${side} notification`,
+        `Only Client ${side} may read this notification`,
+      ],
+    );
     const requestAttachment = await db.query(
       `INSERT INTO portal_request_attachments
          (request_id, team_id, client_id, membership_id, sender_type,
@@ -340,6 +386,7 @@ async function seed() {
       fileId: file.rows[0].id,
       serviceId: service.rows[0].id,
       requestId: portalRequest.rows[0].id,
+      notificationId: portalNotification.rows[0].id,
       requestAttachmentId: requestAttachment.rows[0].id,
     };
   }
@@ -391,6 +438,10 @@ async function run() {
   invariant(b.body.active.client_id === fixture.b.clientId, "Client B received the wrong tenant membership");
   invariant(a.body.capabilities.services === true, "Client A session did not enable Services");
   invariant(a.body.capabilities.requests === true, "Client A session did not enable Requests");
+  invariant(
+    a.body.capabilities.requestNotifications === true,
+    "Client A session did not enable request notifications",
+  );
 
   const aProjects = expectStatus(
     await request("/api/client-portal/projects", { cookie: a.cookie }),
@@ -521,6 +572,60 @@ async function run() {
     404,
     "Client A foreign request",
   );
+
+  const aNotifications = expectStatus(
+    await request("/api/client-portal/notifications", { cookie: a.cookie }),
+    200,
+    "Client A notifications",
+  );
+  invariant(
+    aNotifications.body.total === 1 &&
+      aNotifications.body.notifications[0].id === fixture.a.notificationId &&
+      aNotifications.body.notifications[0].request_id === fixture.a.requestId,
+    "Client A notification list leaked foreign data",
+  );
+  const unreadBefore = expectStatus(
+    await request("/api/client-portal/notifications/unread-count", {
+      cookie: a.cookie,
+    }),
+    200,
+    "Client A notification unread count",
+  );
+  invariant(unreadBefore.body === 1, "Client A unread notification count was not scoped");
+  expectStatus(
+    await request(
+      `/api/client-portal/notifications/${fixture.b.notificationId}/read`,
+      {
+        method: "PUT",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        body: {},
+      },
+    ),
+    404,
+    "Client A foreign notification update",
+  );
+  expectStatus(
+    await request(
+      `/api/client-portal/notifications/${fixture.a.notificationId}/read`,
+      {
+        method: "PUT",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        body: {},
+      },
+    ),
+    200,
+    "Client A notification update",
+  );
+  const unreadAfter = expectStatus(
+    await request("/api/client-portal/notifications/unread-count", {
+      cookie: a.cookie,
+    }),
+    200,
+    "Client A notification unread count after read",
+  );
+  invariant(unreadAfter.body === 0, "Client A notification read state did not persist");
 
   const aRequestAttachments = expectStatus(
     await request(
@@ -692,6 +797,28 @@ async function run() {
   invariant((await socketA.joinProject(fixture.b.projectId)).ok === false, "Client A joined Client B's project room");
   invariant((await socketB.joinProject(fixture.a.projectId)).ok === false, "Client B joined Client A's project room");
 
+  const requestEventPromise = socketA.waitForRequestEvent();
+  expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/comments`,
+      {
+        method: "POST",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        body: { comment: "Client A realtime request comment" },
+      },
+    ),
+    201,
+    "Client A realtime request comment",
+  );
+  const requestEvent = await requestEventPromise;
+  invariant(
+    requestEvent.requestId === fixture.a.requestId &&
+      requestEvent.eventType === "request_comment_added",
+    "Client A received the wrong request event",
+  );
+  await socketB.expectNoRequestEvent();
+
   expectStatus(
     await request("/api/client-portal/auth/logout", {
       method: "POST",
@@ -713,7 +840,7 @@ async function run() {
   );
   invariant(audit.rows[0].count >= 4, "portal security activity was not recorded in the audit log");
 
-  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, services, requests, clean private attachment upload/download/delete, EICAR rejection, audit, Socket.IO rooms, and logout revocation.");
+  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, services, requests, notifications, clean private attachment upload/download/delete, EICAR rejection, audit, Socket.IO rooms, and logout revocation.");
 }
 
 run()

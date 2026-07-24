@@ -20,6 +20,7 @@ export default class NotificationController extends WorklenzControllerBase {
              (SELECT name FROM projects WHERE id = un.project_id) AS project,
              (SELECT color_code FROM projects WHERE id = un.project_id) AS color,
              un.project_id,
+             un.portal_request_id,
              t.id AS task_id,
              un.team_id
       FROM user_notifications un
@@ -34,8 +35,14 @@ export default class NotificationController extends WorklenzControllerBase {
 
     for (const item of result.rows) {
       item.team_color = getColor(item.team_name);
-      item.url = item.project_id ? `/worklenz/projects/${item.project_id}` : null;
-      item.params = {task: item.task_id, tab: "tasks-list"};
+      item.url = item.portal_request_id
+        ? `/worklenz/client-portal/requests/${item.portal_request_id}`
+        : item.project_id
+          ? `/worklenz/projects/${item.project_id}`
+          : null;
+      item.params = item.portal_request_id
+        ? {}
+        : {task: item.task_id, tab: "tasks-list"};
     }
 
     return res.status(200).send(new ServerResponse(true, result.rows));

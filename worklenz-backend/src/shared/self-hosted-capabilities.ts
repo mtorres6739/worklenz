@@ -28,6 +28,7 @@ export const SELF_HOSTED_CAPABILITY_KEYS = [
   "clientPortal",
   "clientPortalServices",
   "clientPortalRequests",
+  "clientPortalRequestNotifications",
   "slack",
   "oidc",
   "microsoftTeams",
@@ -85,6 +86,9 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
   const clientPortalServicesEnabled =
     clientPortalEnabled &&
     process.env.FEATURE_CLIENT_PORTAL_SERVICES === "true";
+  const clientPortalRequestsEnabled =
+    clientPortalServicesEnabled &&
+    process.env.FEATURE_CLIENT_PORTAL_REQUESTS === "true";
   return {
     profile: "self_hosted_full",
     schemaVersion: 1,
@@ -117,9 +121,10 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
       projectFinance: process.env.FEATURE_PROJECT_FINANCE === "true",
       clientPortal: clientPortalEnabled,
       clientPortalServices: clientPortalServicesEnabled,
-      clientPortalRequests:
-        clientPortalServicesEnabled &&
-        process.env.FEATURE_CLIENT_PORTAL_REQUESTS === "true",
+      clientPortalRequests: clientPortalRequestsEnabled,
+      clientPortalRequestNotifications:
+        clientPortalRequestsEnabled &&
+        process.env.FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS === "true",
       slack: process.env.FEATURE_SLACK === "true",
       oidc: process.env.FEATURE_OIDC === "true",
       microsoftTeams: process.env.FEATURE_MICROSOFT_TEAMS === "true",

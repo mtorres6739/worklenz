@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { SOCKET_CONFIG } from '@/socket/config';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
+import PortalNotificationsButton from '@/components/client-portal/PortalNotificationsButton';
 
 const ClientViewLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -39,6 +40,21 @@ const ClientViewLayout = () => {
             { type: 'PortalComments', id: event.taskId },
             { type: 'PortalTasks', id: event.projectId },
             'PortalDashboard',
+          ])
+        );
+      }
+    );
+    socket.on(
+      'portal:request-event',
+      (event: { requestId: string; eventType: string }) => {
+        dispatch(
+          portalClientApi.util.invalidateTags([
+            'PortalRequests',
+            'PortalDashboard',
+            'PortalNotifications',
+            { type: 'PortalRequests', id: event.requestId },
+            { type: 'PortalRequestComments', id: event.requestId },
+            { type: 'PortalRequestAttachments', id: event.requestId },
           ])
         );
       }
@@ -79,18 +95,20 @@ const ClientViewLayout = () => {
             {session?.branding.display_name || 'SDM Client Projects'}
           </Typography.Text>
         )}
-        <Button
-          type="text"
-          icon={<LogoutOutlined />}
-          loading={isLoggingOut}
-          style={{ marginInlineStart: 'auto', marginInlineEnd: 18 }}
-          onClick={async () => {
-            await logout().unwrap().catch(() => undefined);
-            navigate('/portal/login', { replace: true });
-          }}
-        >
-          Sign out
-        </Button>
+        <Flex align="center" gap={8} style={{ marginInlineStart: 'auto', marginInlineEnd: 18 }}>
+          {session?.capabilities.requestNotifications && <PortalNotificationsButton />}
+          <Button
+            type="text"
+            icon={<LogoutOutlined />}
+            loading={isLoggingOut}
+            onClick={async () => {
+              await logout().unwrap().catch(() => undefined);
+              navigate('/portal/login', { replace: true });
+            }}
+          >
+            Sign out
+          </Button>
+        </Flex>
       </Layout.Header>
 
       <Layout.Content>

@@ -114,7 +114,9 @@ docker run -d --name "$backend_container" --network "$network_name" --network-al
   -e DB_USER=isolation -e DB_PASSWORD=isolation -e DB_HOST=portal-db -e DB_PORT=5432 -e DB_NAME=isolation \
   -e PORT=3000 -e APP_ORIGIN="$test_origin" -e SOCKET_IO_CORS="$test_origin" \
   -e FEATURE_CLIENT_PORTAL=true -e FEATURE_CLIENT_PORTAL_SERVICES=true \
-  -e FEATURE_CLIENT_PORTAL_REQUESTS=true -e IMPORT_WORKER_ENABLED=false \
+  -e FEATURE_CLIENT_PORTAL_REQUESTS=true \
+  -e FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=true \
+  -e IMPORT_WORKER_ENABLED=false \
   -e PORTAL_ATTACHMENT_SCAN_MODE=clamav -e CLAMAV_HOST=portal-clamav \
   -e CLAMAV_PORT=3310 -e CLAMAV_SCAN_TIMEOUT_MS=30000 \
   -e ENABLE_EMAIL_CRONJOBS=false -e ENABLE_RECURRING_JOBS=false \

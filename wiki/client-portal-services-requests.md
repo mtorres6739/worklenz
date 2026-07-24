@@ -4,8 +4,10 @@ Wave 5 starts with two independently gated capabilities:
 
 - `FEATURE_CLIENT_PORTAL_SERVICES`
 - `FEATURE_CLIENT_PORTAL_REQUESTS`
+- `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS`
 
-Both require `FEATURE_CLIENT_PORTAL=true`. Requests also require Services. The
+All require `FEATURE_CLIENT_PORTAL=true`. Requests also require Services, and request
+notifications require Requests. The
 backend capability response is authoritative, the staff and client navigation hide
 disabled areas, and direct disabled routes return 404. Both capabilities are enabled
 for the Cloudflare-protected internal workspace after the release evidence below
@@ -55,7 +57,6 @@ Implemented behind disabled flags:
 
 Still outside the current internal-pilot acceptance:
 
-- request notifications and real-time events;
 - a separate-browser walkthrough using a designated real client identity; and
 - external client enablement.
 
@@ -163,3 +164,36 @@ The internal staff pilot now runs with
 `FEATURE_CLIENT_PORTAL_SERVICES=true` and
 `FEATURE_CLIENT_PORTAL_REQUESTS=true`. This does not authorize the designated external
 client pilot; that still requires the separate-browser walkthrough and pilot approval.
+
+## Request notifications and real-time event candidate
+
+Migration `2026072400050_portal_request_notifications` adds durable, separately scoped
+notification records without mixing client identities into the staff notification
+table. It also adds a nullable request link to the existing staff notification model.
+
+- Client notification rows carry team, client, membership, and request IDs. Composite
+  foreign keys reject cross-client membership or request combinations.
+- Client list, unread-count, mark-read, and mark-all-read queries require all three
+  authenticated scope IDs.
+- Staff notifications go only to owners, administrators, or an explicitly assigned
+  portal administrator. Request administration remains owner/admin-only.
+- Socket events target explicit `staff:user:<id>` rooms and
+  `portal:client:<team>:<client>` rooms. The staff login event ignores any
+  client-supplied user ID and derives room membership from the authenticated session.
+- Status changes, assignments, comments, and attachments create durable notification
+  records in the same transaction as the request mutation. Realtime emission happens
+  only after commit.
+- Private attachment object keys and comment bodies are not included in event payloads.
+- The UI exposes the client bell only when
+  `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=true`.
+
+The candidate is independently fail-closed. Deploy the additive migration and code
+with `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=false`, rehearse the exact immutable
+SHA on an encrypted restore, and enable it only after the extended Client A/Client B
+API and Socket.IO gate passes.
+
+Local candidate validation on 2026-07-24 passed backend CE typecheck, all 24 backend
+test suites (104 tests plus one todo), the Sentry-disabled production frontend build,
+the self-hosted commercial-gate inventory, high/critical production dependency gates,
+shell and JavaScript syntax checks, and a fresh PostgreSQL initialization with the
+entire migration chain applied twice.

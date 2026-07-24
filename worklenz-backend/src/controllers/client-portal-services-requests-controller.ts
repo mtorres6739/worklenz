@@ -5,6 +5,10 @@ import db from "../config/db";
 import { ClientPortalRequest } from "../interfaces/client-portal-request";
 import { ServerResponse } from "../models/server-response";
 import { auditPortalEvent } from "../services/client-portal-session.service";
+import {
+  createStaffRequestNotifications,
+  emitRequestEvent,
+} from "../services/client-portal-request-notifications.service";
 import { scanPortalAttachment } from "../services/malware-scanner.service";
 import {
   createPresignedViewUrl,
@@ -149,6 +153,111 @@ async function scopedRequest(
 }
 
 export default class ClientPortalServicesRequestsController {
+  public static async notifications(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const { limit, offset } = pageOptions(req);
+    const result = await db.query(
+      `SELECT pn.id, pn.request_id, pn.event_type, pn.title, pn.message,
+              pn.event_data, pn.read_at, pn.created_at,
+              pr.request_no AS req_no, COUNT(*) OVER()::INT AS full_count
+         FROM portal_notifications pn
+         JOIN portal_requests pr
+           ON pr.id = pn.request_id
+          AND pr.team_id = pn.team_id
+          AND pr.client_id = pn.client_id
+        WHERE pn.membership_id = $1::UUID
+          AND pn.team_id = $2::UUID
+          AND pn.client_id = $3::UUID
+        ORDER BY pn.created_at DESC, pn.id
+        LIMIT $4 OFFSET $5`,
+      [
+        actor.membershipId,
+        actor.teamId,
+        actor.clientId,
+        limit,
+        offset,
+      ],
+    );
+    return res.send(
+      new ServerResponse(true, {
+        notifications: result.rows.map(
+          ({ full_count: _fullCount, ...notification }) => notification,
+        ),
+        total: Number(result.rows[0]?.full_count || 0),
+      }),
+    );
+  }
+
+  public static async notificationUnreadCount(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const result = await db.query(
+      `SELECT COUNT(*)::INT AS count
+         FROM portal_notifications
+        WHERE membership_id = $1::UUID
+          AND team_id = $2::UUID
+          AND client_id = $3::UUID
+          AND read_at IS NULL`,
+      [actor.membershipId, actor.teamId, actor.clientId],
+    );
+    return res.send(
+      new ServerResponse(true, Number(result.rows[0]?.count || 0)),
+    );
+  }
+
+  public static async markNotificationRead(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const id = String(req.params.id || "");
+    if (!UUID_PATTERN.test(id)) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Notification not found"));
+    }
+    const result = await db.query(
+      `UPDATE portal_notifications
+          SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+        WHERE id = $1::UUID
+          AND membership_id = $2::UUID
+          AND team_id = $3::UUID
+          AND client_id = $4::UUID
+        RETURNING id, read_at`,
+      [id, actor.membershipId, actor.teamId, actor.clientId],
+    );
+    if (!result.rowCount) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Notification not found"));
+    }
+    return res.send(new ServerResponse(true, result.rows[0]));
+  }
+
+  public static async markAllNotificationsRead(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const result = await db.query(
+      `UPDATE portal_notifications
+          SET read_at = CURRENT_TIMESTAMP
+        WHERE membership_id = $1::UUID
+          AND team_id = $2::UUID
+          AND client_id = $3::UUID
+          AND read_at IS NULL`,
+      [actor.membershipId, actor.teamId, actor.clientId],
+    );
+    return res.send(
+      new ServerResponse(true, { updated: result.rowCount || 0 }),
+    );
+  }
+
   public static async services(
     req: ClientPortalRequest,
     res: Response,
@@ -271,6 +380,11 @@ export default class ClientPortalServicesRequestsController {
     }
 
     const client = await db.connect();
+    let createdRequest: Record<string, unknown> | undefined;
+    let staffUserIds: string[] = [];
+    let requestEvent:
+      | Parameters<typeof emitRequestEvent>[0]
+      | undefined;
     try {
       await client.query("BEGIN");
       const inserted = await client.query(
@@ -299,6 +413,11 @@ export default class ClientPortalServicesRequestsController {
           RETURNING *`,
         [inserted.rows[0].id, requestNo],
       );
+      createdRequest = {
+        ...updated.rows[0],
+        req_no: updated.rows[0].request_no,
+        service_name: service.name,
+      };
       await client.query(
         `INSERT INTO portal_request_status_history
            (request_id, team_id, client_id, to_status,
@@ -306,30 +425,37 @@ export default class ClientPortalServicesRequestsController {
          VALUES ($1::UUID, $2::UUID, $3::UUID, 'pending', $4::UUID)`,
         [inserted.rows[0].id, actor.teamId, actor.clientId, actor.membershipId],
       );
-      await client.query("COMMIT");
-      await auditPortalEvent({
-        action: "request.created",
-        actor,
-        details: { requestId: inserted.rows[0].id, serviceId },
-        req,
+      requestEvent = {
+        requestId: inserted.rows[0].id,
+        requestNo,
+        teamId: actor.teamId,
+        clientId: actor.clientId,
+        eventType: "request_created",
+        title: "New service request",
+        message: `${actor.name} submitted request ${requestNo}.`,
+        data: { serviceName: String(service.name) },
+      };
+      staffUserIds = await createStaffRequestNotifications(client, {
+        ...requestEvent,
+        assignedUserId: null,
       });
-      return res.status(201).send(
-        new ServerResponse(
-          true,
-          {
-            ...updated.rows[0],
-            req_no: updated.rows[0].request_no,
-            service_name: service.name,
-          },
-          "Request submitted",
-        ),
-      );
+      await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+    await auditPortalEvent({
+      action: "request.created",
+      actor,
+      details: { requestId: requestEvent!.requestId, serviceId },
+      req,
+    });
+    emitRequestEvent(requestEvent!, staffUserIds);
+    return res
+      .status(201)
+      .send(new ServerResponse(true, createdRequest, "Request submitted"));
   }
 
   public static async request(
@@ -395,35 +521,74 @@ export default class ClientPortalServicesRequestsController {
         .status(400)
         .send(new ServerResponse(false, null, "A valid comment is required"));
     }
-    if (!(await scopedRequest(id, actor.teamId, actor.clientId))) {
+    const request = await scopedRequest(id, actor.teamId, actor.clientId);
+    if (!request) {
       return res
         .status(404)
         .send(new ServerResponse(false, null, "Request not found"));
     }
-    const result = await db.query(
-      `INSERT INTO portal_request_comments
-         (request_id, team_id, client_id, membership_id, sender_type,
-          sender_name, comment)
-       VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, 'client', $5, $6)
-       RETURNING id, comment, sender_type, sender_name, created_at, updated_at`,
-      [
-        id,
-        actor.teamId,
-        actor.clientId,
-        actor.membershipId,
-        actor.name,
-        comment,
-      ],
-    );
+    const client = await db.connect();
+    let createdComment: Record<string, unknown> | undefined;
+    let staffUserIds: string[] = [];
+    const requestNo = String(request.request_no);
+    const requestEvent: Parameters<typeof emitRequestEvent>[0] = {
+      requestId: id,
+      requestNo,
+      teamId: actor.teamId,
+      clientId: actor.clientId,
+      eventType: "request_comment_added",
+      title: "New client comment",
+      message: `${actor.name} commented on request ${requestNo}.`,
+    };
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `INSERT INTO portal_request_comments
+           (request_id, team_id, client_id, membership_id, sender_type,
+            sender_name, comment)
+         VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, 'client', $5, $6)
+         RETURNING id, comment, sender_type, sender_name, created_at, updated_at`,
+        [
+          id,
+          actor.teamId,
+          actor.clientId,
+          actor.membershipId,
+          actor.name,
+          comment,
+        ],
+      );
+      createdComment = result.rows[0];
+      await client.query(
+        `UPDATE portal_requests
+            SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1::UUID
+            AND team_id = $2::UUID
+            AND client_id = $3::UUID`,
+        [id, actor.teamId, actor.clientId],
+      );
+      staffUserIds = await createStaffRequestNotifications(client, {
+        ...requestEvent,
+        assignedUserId: request.assigned_to
+          ? String(request.assigned_to)
+          : null,
+      });
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     await auditPortalEvent({
       action: "request.comment.created",
       actor,
-      details: { requestId: id, commentId: result.rows[0].id },
+      details: { requestId: id, commentId: createdComment!.id },
       req,
     });
+    emitRequestEvent(requestEvent, staffUserIds);
     return res
       .status(201)
-      .send(new ServerResponse(true, result.rows[0], "Comment added"));
+      .send(new ServerResponse(true, createdComment, "Comment added"));
   }
 
   public static async attachments(
@@ -471,7 +636,12 @@ export default class ClientPortalServicesRequestsController {
         .status(400)
         .send(new ServerResponse(false, null, "Invalid attachment"));
     }
-    if (!(await scopedRequest(requestId, actor.teamId, actor.clientId))) {
+    const request = await scopedRequest(
+      requestId,
+      actor.teamId,
+      actor.clientId,
+    );
+    if (!request) {
       return res
         .status(404)
         .send(new ServerResponse(false, null, "Request not found"));
@@ -516,8 +686,22 @@ export default class ClientPortalServicesRequestsController {
         .send(new ServerResponse(false, null, "Attachment upload failed"));
     }
 
+    const client = await db.connect();
+    let attachment: Record<string, unknown> | undefined;
+    let staffUserIds: string[] = [];
+    const requestNo = String(request.request_no);
+    const requestEvent: Parameters<typeof emitRequestEvent>[0] = {
+      requestId,
+      requestNo,
+      teamId: actor.teamId,
+      clientId: actor.clientId,
+      eventType: "request_attachment_added",
+      title: "New client attachment",
+      message: `${actor.name} added an attachment to request ${requestNo}.`,
+    };
     try {
-      const inserted = await db.query(
+      await client.query("BEGIN");
+      const inserted = await client.query(
         `INSERT INTO portal_request_attachments
            (id, request_id, team_id, client_id, membership_id, sender_type,
             object_key, file_name, mime_type, size)
@@ -536,21 +720,39 @@ export default class ClientPortalServicesRequestsController {
           file.size,
         ],
       );
-      await auditPortalEvent({
-        action: "request.attachment.uploaded",
-        actor,
-        details: { requestId, attachmentId },
-        req,
+      attachment = inserted.rows[0];
+      await client.query(
+        `UPDATE portal_requests
+            SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1::UUID
+            AND team_id = $2::UUID
+            AND client_id = $3::UUID`,
+        [requestId, actor.teamId, actor.clientId],
+      );
+      staffUserIds = await createStaffRequestNotifications(client, {
+        ...requestEvent,
+        assignedUserId: request.assigned_to
+          ? String(request.assigned_to)
+          : null,
       });
-      return res
-        .status(201)
-        .send(
-          new ServerResponse(true, inserted.rows[0], "Attachment uploaded"),
-        );
+      await client.query("COMMIT");
     } catch (error) {
+      await client.query("ROLLBACK");
       await deleteObject(objectKey);
       throw error;
+    } finally {
+      client.release();
     }
+    await auditPortalEvent({
+      action: "request.attachment.uploaded",
+      actor,
+      details: { requestId, attachmentId },
+      req,
+    });
+    emitRequestEvent(requestEvent, staffUserIds);
+    return res
+      .status(201)
+      .send(new ServerResponse(true, attachment, "Attachment uploaded"));
   }
 
   public static async downloadAttachment(

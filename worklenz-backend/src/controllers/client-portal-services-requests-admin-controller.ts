@@ -5,6 +5,11 @@ import db from "../config/db";
 import { IWorkLenzRequest } from "../interfaces/worklenz-request";
 import { ServerResponse } from "../models/server-response";
 import { auditPortalEvent } from "../services/client-portal-session.service";
+import {
+  createClientRequestNotifications,
+  createStaffRequestNotifications,
+  emitRequestEvent,
+} from "../services/client-portal-request-notifications.service";
 import { scanPortalAttachment } from "../services/malware-scanner.service";
 import {
   createPresignedViewUrl,
@@ -548,8 +553,11 @@ export default class ClientPortalServicesRequestsAdminController {
     if (assignedTo) {
       const member = await db.query(
         `SELECT 1
-           FROM team_members
-          WHERE team_id = $1::UUID AND user_id = $2::UUID
+           FROM team_members tm
+           JOIN roles r ON r.id = tm.role_id AND r.team_id = tm.team_id
+          WHERE tm.team_id = $1::UUID
+            AND tm.user_id = $2::UUID
+            AND (r.owner = TRUE OR r.name = 'Admin')
           LIMIT 1`,
         [staff.teamId, assignedTo],
       );
@@ -557,11 +565,27 @@ export default class ClientPortalServicesRequestsAdminController {
         return res
           .status(400)
           .send(
-            new ServerResponse(false, null, "Assignee is not in this team"),
+            new ServerResponse(
+              false,
+              null,
+              "Assignee must be an owner or administrator",
+            ),
           );
       }
     }
     const client = await db.connect();
+    let updatedRequest: Record<string, unknown> | undefined;
+    const requestNo = String(existing.request_no);
+    const requestEvent: Parameters<typeof emitRequestEvent>[0] = {
+      requestId: id,
+      requestNo,
+      teamId: staff.teamId,
+      clientId: String(existing.client_id),
+      eventType: "request_status_updated",
+      title: "Request status updated",
+      message: `Request ${requestNo} is now ${status.replaceAll("_", " ")}.`,
+      data: { fromStatus: existing.status, status },
+    };
     try {
       await client.query("BEGIN");
       const updated = await client.query(
@@ -577,6 +601,7 @@ export default class ClientPortalServicesRequestsAdminController {
           RETURNING *`,
         [id, staff.teamId, status, notes, assignedTo || null],
       );
+      updatedRequest = updated.rows[0];
       await client.query(
         `INSERT INTO portal_request_status_history
            (request_id, team_id, client_id, from_status, to_status,
@@ -592,24 +617,26 @@ export default class ClientPortalServicesRequestsAdminController {
           notes,
         ],
       );
+      await createClientRequestNotifications(client, requestEvent);
       await client.query("COMMIT");
-      await auditPortalEvent({
-        action: "request.status.updated",
-        staffUserId: staff.userId,
-        teamId: staff.teamId,
-        clientId: String(existing.client_id),
-        details: { requestId: id, from: existing.status, to: status },
-        req,
-      });
-      return res.send(
-        new ServerResponse(true, updated.rows[0], "Request status updated"),
-      );
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+    await auditPortalEvent({
+      action: "request.status.updated",
+      staffUserId: staff.userId,
+      teamId: staff.teamId,
+      clientId: String(existing.client_id),
+      details: { requestId: id, from: existing.status, to: status },
+      req,
+    });
+    emitRequestEvent(requestEvent);
+    return res.send(
+      new ServerResponse(true, updatedRequest, "Request status updated"),
+    );
   }
 
   public static async assignRequest(
@@ -624,32 +651,85 @@ export default class ClientPortalServicesRequestsAdminController {
         .status(400)
         .send(new ServerResponse(false, null, "Invalid request assignment"));
     }
-    const result = await db.query(
-      `UPDATE portal_requests pr
-          SET assigned_to = $3::UUID, updated_at = CURRENT_TIMESTAMP
-        WHERE pr.id = $1::UUID AND pr.team_id = $2::UUID
-          AND EXISTS (
-            SELECT 1 FROM team_members tm
-             WHERE tm.team_id = pr.team_id AND tm.user_id = $3::UUID
-          )
-        RETURNING pr.*`,
-      [id, staff.teamId, assignedTo],
-    );
-    if (!result.rowCount) {
-      return res
-        .status(404)
-        .send(new ServerResponse(false, null, "Request or assignee not found"));
+    const client = await db.connect();
+    let assignedRequest: Record<string, unknown> | undefined;
+    let assignedStaffUserIds: string[] = [];
+    let requestEvent:
+      | Parameters<typeof emitRequestEvent>[0]
+      | undefined;
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `UPDATE portal_requests pr
+            SET assigned_to = $3::UUID, updated_at = CURRENT_TIMESTAMP
+          WHERE pr.id = $1::UUID AND pr.team_id = $2::UUID
+            AND EXISTS (
+              SELECT 1 FROM team_members tm
+               JOIN roles r ON r.id = tm.role_id AND r.team_id = tm.team_id
+              WHERE tm.team_id = pr.team_id
+                AND tm.user_id = $3::UUID
+                AND (r.owner = TRUE OR r.name = 'Admin')
+            )
+          RETURNING pr.*`,
+        [id, staff.teamId, assignedTo],
+      );
+      if (!result.rowCount) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .send(
+            new ServerResponse(
+              false,
+              null,
+              "Request or administrator assignee not found",
+            ),
+          );
+      }
+      const assigned = result.rows[0] as Record<string, unknown>;
+      assignedRequest = assigned;
+      const assignee = await client.query(
+        `SELECT name FROM users WHERE id = $1::UUID LIMIT 1`,
+        [assignedTo],
+      );
+      const requestNo = String(assigned.request_no);
+      const assignedName = String(
+        assignee.rows[0]?.name || "the SDM team",
+      );
+      requestEvent = {
+        requestId: id,
+        requestNo,
+        teamId: staff.teamId,
+        clientId: String(assigned.client_id),
+        eventType: "request_assigned",
+        title: "Request assigned",
+        message: `Request ${requestNo} was assigned to ${assignedName}.`,
+        data: { assignedName },
+      };
+      assignedStaffUserIds = await createStaffRequestNotifications(client, {
+        ...requestEvent,
+        includeAdministrators: false,
+        assignedUserId: assignedTo,
+        excludeUserId: staff.userId,
+      });
+      await createClientRequestNotifications(client, requestEvent);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
     await auditPortalEvent({
       action: "request.assigned",
       staffUserId: staff.userId,
       teamId: staff.teamId,
-      clientId: result.rows[0].client_id,
+      clientId: String(assignedRequest!.client_id),
       details: { requestId: id, assignedTo },
       req,
     });
+    emitRequestEvent(requestEvent!, assignedStaffUserIds);
     return res.send(
-      new ServerResponse(true, result.rows[0], "Request assigned"),
+      new ServerResponse(true, assignedRequest, "Request assigned"),
     );
   }
 
@@ -702,26 +782,56 @@ export default class ClientPortalServicesRequestsAdminController {
         .status(404)
         .send(new ServerResponse(false, null, "Request not found"));
     }
-    const result = await db.query(
-      `INSERT INTO portal_request_comments
-         (request_id, team_id, client_id, staff_user_id, sender_type,
-          sender_name, comment)
-       VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, 'staff', $5, $6)
-       RETURNING id, comment, 'team_member'::TEXT AS sender_type,
-                 staff_user_id AS sender_id, sender_name, created_at, updated_at`,
-      [id, staff.teamId, request.client_id, staff.userId, staff.name, comment],
-    );
+    const client = await db.connect();
+    let createdComment: Record<string, unknown> | undefined;
+    const requestNo = String(request.request_no);
+    const requestEvent: Parameters<typeof emitRequestEvent>[0] = {
+      requestId: id,
+      requestNo,
+      teamId: staff.teamId,
+      clientId: String(request.client_id),
+      eventType: "request_comment_added",
+      title: "New SDM comment",
+      message: `${staff.name} commented on request ${requestNo}.`,
+    };
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `INSERT INTO portal_request_comments
+           (request_id, team_id, client_id, staff_user_id, sender_type,
+            sender_name, comment)
+         VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, 'staff', $5, $6)
+         RETURNING id, comment, 'team_member'::TEXT AS sender_type,
+                   staff_user_id AS sender_id, sender_name, created_at, updated_at`,
+        [id, staff.teamId, request.client_id, staff.userId, staff.name, comment],
+      );
+      createdComment = result.rows[0];
+      await client.query(
+        `UPDATE portal_requests
+            SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1::UUID AND team_id = $2::UUID`,
+        [id, staff.teamId],
+      );
+      await createClientRequestNotifications(client, requestEvent);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     await auditPortalEvent({
       action: "request.comment.created",
       staffUserId: staff.userId,
       teamId: staff.teamId,
       clientId: String(request.client_id),
-      details: { requestId: id, commentId: result.rows[0].id },
+      details: { requestId: id, commentId: createdComment!.id },
       req,
     });
+    emitRequestEvent(requestEvent);
     return res
       .status(201)
-      .send(new ServerResponse(true, result.rows[0], "Comment added"));
+      .send(new ServerResponse(true, createdComment, "Comment added"));
   }
 
   public static async attachments(
@@ -812,8 +922,21 @@ export default class ClientPortalServicesRequestsAdminController {
         .send(new ServerResponse(false, null, "Attachment upload failed"));
     }
 
+    const client = await db.connect();
+    let attachment: Record<string, unknown> | undefined;
+    const requestNo = String(request.request_no);
+    const requestEvent: Parameters<typeof emitRequestEvent>[0] = {
+      requestId,
+      requestNo,
+      teamId: staff.teamId,
+      clientId,
+      eventType: "request_attachment_added",
+      title: "New SDM attachment",
+      message: `${staff.name} added an attachment to request ${requestNo}.`,
+    };
     try {
-      const inserted = await db.query(
+      await client.query("BEGIN");
+      const inserted = await client.query(
         `INSERT INTO portal_request_attachments
            (id, request_id, team_id, client_id, staff_user_id, sender_type,
             object_key, file_name, mime_type, size)
@@ -832,23 +955,34 @@ export default class ClientPortalServicesRequestsAdminController {
           file.size,
         ],
       );
-      await auditPortalEvent({
-        action: "request.attachment.uploaded",
-        staffUserId: staff.userId,
-        teamId: staff.teamId,
-        clientId,
-        details: { requestId, attachmentId },
-        req,
-      });
-      return res
-        .status(201)
-        .send(
-          new ServerResponse(true, inserted.rows[0], "Attachment uploaded"),
-        );
+      attachment = inserted.rows[0];
+      await client.query(
+        `UPDATE portal_requests
+            SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1::UUID AND team_id = $2::UUID`,
+        [requestId, staff.teamId],
+      );
+      await createClientRequestNotifications(client, requestEvent);
+      await client.query("COMMIT");
     } catch (error) {
+      await client.query("ROLLBACK");
       await deleteObject(objectKey);
       throw error;
+    } finally {
+      client.release();
     }
+    await auditPortalEvent({
+      action: "request.attachment.uploaded",
+      staffUserId: staff.userId,
+      teamId: staff.teamId,
+      clientId,
+      details: { requestId, attachmentId },
+      req,
+    });
+    emitRequestEvent(requestEvent);
+    return res
+      .status(201)
+      .send(new ServerResponse(true, attachment, "Attachment uploaded"));
   }
 
   public static async downloadAttachment(

@@ -16,6 +16,7 @@ Released flags:
 Implemented but fail-closed until provider configuration and independent integration
 gates pass:
 
+- `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=false`
 - `FEATURE_OIDC=false`
 - `FEATURE_SLACK=false`
 
@@ -59,7 +60,9 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   UI wiring, private request attachments, and independent fail-closed capabilities.
   The exact image passed restore-clone isolation, real private
   clean-upload/download/delete, and malware rejection and is enabled for the internal
-  workspace. External client access remains gated by the separate-browser walkthrough.
+  workspace. Tenant-scoped durable request notifications and explicit-room realtime
+  events are implemented behind their own disabled release flag. External client
+  access remains gated by the separate-browser walkthrough.
   See
   [Client Portal services and requests](client-portal-services-requests.md).
 - Portal invoices, payments, chat, advertised provider integrations, and curated plugins

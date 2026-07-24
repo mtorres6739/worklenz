@@ -15,6 +15,7 @@ describe("self-hosted capability profile", () => {
     delete process.env.FEATURE_CLIENT_PORTAL;
     delete process.env.FEATURE_CLIENT_PORTAL_SERVICES;
     delete process.env.FEATURE_CLIENT_PORTAL_REQUESTS;
+    delete process.env.FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS;
     delete process.env.FEATURE_SLACK;
     const profile = getSelfHostedCapabilities();
     expect(profile.profile).toBe("self_hosted_full");
@@ -29,6 +30,9 @@ describe("self-hosted capability profile", () => {
     expect(profile.capabilities.clientPortal).toBe(false);
     expect(profile.capabilities.clientPortalServices).toBe(false);
     expect(profile.capabilities.clientPortalRequests).toBe(false);
+    expect(
+      profile.capabilities.clientPortalRequestNotifications,
+    ).toBe(false);
     expect(profile.capabilities.slack).toBe(false);
   });
 
@@ -53,12 +57,17 @@ describe("self-hosted capability profile", () => {
     process.env.FEATURE_CLIENT_PORTAL = "false";
     process.env.FEATURE_CLIENT_PORTAL_SERVICES = "true";
     process.env.FEATURE_CLIENT_PORTAL_REQUESTS = "true";
+    process.env.FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS = "true";
     expect(getSelfHostedCapabilities().capabilities.clientPortalServices).toBe(
       false,
     );
     expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
       false,
     );
+    expect(
+      getSelfHostedCapabilities().capabilities
+        .clientPortalRequestNotifications,
+    ).toBe(false);
 
     process.env.FEATURE_CLIENT_PORTAL = "true";
     expect(getSelfHostedCapabilities().capabilities.clientPortalServices).toBe(
@@ -67,11 +76,19 @@ describe("self-hosted capability profile", () => {
     expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
       true,
     );
+    expect(
+      getSelfHostedCapabilities().capabilities
+        .clientPortalRequestNotifications,
+    ).toBe(true);
 
     process.env.FEATURE_CLIENT_PORTAL_SERVICES = "false";
     expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
       false,
     );
+    expect(
+      getSelfHostedCapabilities().capabilities
+        .clientPortalRequestNotifications,
+    ).toBe(false);
   });
 
   it("caps upload configuration at one GiB", () => {

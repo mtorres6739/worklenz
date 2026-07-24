@@ -6,6 +6,8 @@ import logger from '@/utils/errorLogger';
 import { Modal } from '@/shared/antd-imports';
 import { SocketEvents } from '@/shared/socket-events';
 import { getUserSession } from '@/utils/session-helper';
+import { useAppDispatch } from '@/hooks/useAppDispatch';
+import { clientPortalApi } from '@/api/client-portal/client-portal-api';
 
 // Global socket instance to prevent multiple connections in StrictMode
 let globalSocketInstance: Socket | null = null;
@@ -23,6 +25,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [connected, setConnected] = useState(false);
   const [modal, contextHolder] = Modal.useModal();
   const profile = getUserSession();
+  const dispatch = useAppDispatch();
   const isInitialized = useRef(false); // Track if socket is already initialized
 
   // Initialize socket connection
@@ -110,6 +113,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     );
 
+    socket.on('portal:request-event', (event: { requestId: string }) => {
+      dispatch(
+        clientPortalApi.util.invalidateTags([
+          'Requests',
+          { type: 'Requests', id: event.requestId },
+          { type: 'Requests', id: `${event.requestId}-comments` },
+          { type: 'RequestAttachments', id: event.requestId },
+        ])
+      );
+    });
+
     // Connect after setting up listeners
     socket.connect();
 
@@ -122,6 +136,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket.off('disconnect');
         socket.off(SocketEvents.INVITATIONS_UPDATE.toString());
         socket.off(SocketEvents.TEAM_MEMBER_REMOVED.toString());
+        socket.off('portal:request-event');
         socket.removeAllListeners();
 
         // Then close the connection

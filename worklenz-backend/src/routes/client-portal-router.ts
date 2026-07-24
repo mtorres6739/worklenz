@@ -88,6 +88,35 @@ router.post(
 );
 
 router.get(
+  "/notifications",
+  requireSelfHostedCapability("clientPortalRequestNotifications"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.notifications,
+  ),
+);
+router.get(
+  "/notifications/unread-count",
+  requireSelfHostedCapability("clientPortalRequestNotifications"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.notificationUnreadCount,
+  ),
+);
+router.put(
+  "/notifications/read-all",
+  requireSelfHostedCapability("clientPortalRequestNotifications"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.markAllNotificationsRead,
+  ),
+);
+router.put(
+  "/notifications/:id/read",
+  requireSelfHostedCapability("clientPortalRequestNotifications"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.markNotificationRead,
+  ),
+);
+
+router.get(
   "/services",
   requireSelfHostedCapability("clientPortalServices"),
   safeControllerFunction(ClientPortalServicesRequestsController.services),

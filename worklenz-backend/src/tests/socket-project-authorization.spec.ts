@@ -7,6 +7,7 @@ jest.mock("../shared/utils", () => ({ log_error: jest.fn() }));
 import db from "../config/db";
 import { verifyProjectAccessSocket } from "../socket.io/authorization";
 import { registerClientPortalSocketHandlers } from "../socket.io/client-portal";
+import { on_login } from "../socket.io/commands/on-connect";
 
 describe("Socket.IO project-room authorization", () => {
   const query = db.query as jest.Mock;
@@ -31,6 +32,35 @@ describe("Socket.IO project-room authorization", () => {
     );
     expect(query.mock.calls[0][0]).toContain("r.owner = TRUE");
     expect(query.mock.calls[0][0]).toContain("r.admin_role = TRUE");
+  });
+});
+
+describe("staff Socket.IO identity", () => {
+  const query = db.query as jest.Mock;
+
+  beforeEach(() => query.mockReset());
+
+  it("ignores the claimed user id and joins rooms from the authenticated session", async () => {
+    query.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const socket = {
+      id: "socket-a",
+      request: {
+        session: { passport: { user: { id: "authenticated-user" } } },
+      },
+      join: jest.fn(),
+      emit: jest.fn(),
+      disconnect: jest.fn(),
+    } as any;
+
+    await on_login({} as any, socket, "attacker-controlled-id");
+
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("WHERE id = $2::UUID"),
+      ["socket-a", "authenticated-user"],
+    );
+    expect(socket.join).toHaveBeenCalledWith("staff:user:authenticated-user");
+    expect(socket.join).not.toHaveBeenCalledWith(expect.stringContaining("staff:team:"));
   });
 });
 

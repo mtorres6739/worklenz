@@ -82,6 +82,55 @@ describe("client portal services and requests isolation", () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
+  it("lists notifications only for the active membership, team, and client", async () => {
+    query.mockResolvedValue({ rows: [], rowCount: 0 });
+    const req = {
+      query: {},
+      portalActor: {
+        membershipId: "55555555-5555-4555-8555-555555555555",
+        teamId: "11111111-1111-4111-8111-111111111111",
+        clientId: "22222222-2222-4222-8222-222222222222",
+      },
+    } as any;
+
+    await ClientPortalServicesRequestsController.notifications(req, response());
+
+    expect(query.mock.calls[0][0]).toContain("pn.membership_id = $1::UUID");
+    expect(query.mock.calls[0][0]).toContain("pn.team_id = $2::UUID");
+    expect(query.mock.calls[0][0]).toContain("pn.client_id = $3::UUID");
+    expect(query.mock.calls[0][1].slice(0, 3)).toEqual([
+      req.portalActor.membershipId,
+      req.portalActor.teamId,
+      req.portalActor.clientId,
+    ]);
+  });
+
+  it("marks a notification read only inside the active portal scope", async () => {
+    query.mockResolvedValue({ rows: [], rowCount: 0 });
+    const req = {
+      params: { id: "66666666-6666-4666-8666-666666666666" },
+      portalActor: {
+        membershipId: "55555555-5555-4555-8555-555555555555",
+        teamId: "11111111-1111-4111-8111-111111111111",
+        clientId: "22222222-2222-4222-8222-222222222222",
+      },
+    } as any;
+    const res = response();
+
+    await ClientPortalServicesRequestsController.markNotificationRead(req, res);
+
+    expect(query.mock.calls[0][0]).toContain("membership_id = $2::UUID");
+    expect(query.mock.calls[0][0]).toContain("team_id = $3::UUID");
+    expect(query.mock.calls[0][0]).toContain("client_id = $4::UUID");
+    expect(query.mock.calls[0][1]).toEqual([
+      req.params.id,
+      req.portalActor.membershipId,
+      req.portalActor.teamId,
+      req.portalActor.clientId,
+    ]);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
   it("rejects client-supplied attachment metadata until private attachment APIs ship", async () => {
     const req = {
       body: {

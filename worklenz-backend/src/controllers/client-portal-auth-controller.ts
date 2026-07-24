@@ -72,6 +72,7 @@ async function sessionBody(
     capabilities: {
       services: selfHosted.clientPortalServices,
       requests: selfHosted.clientPortalRequests,
+      requestNotifications: selfHosted.clientPortalRequestNotifications,
     },
   };
 }

@@ -90,6 +90,9 @@ jobs:
           psql -Atc "SELECT to_regclass('public.portal_request_status_history') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.portal_request_comments') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.portal_request_attachments') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_notifications') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'user_notifications' AND column_name = 'portal_request_id'" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 2 FROM pg_constraint WHERE conname IN ('portal_notifications_membership_scope_fk','portal_notifications_request_scope_fk')" | grep -qx t
           psql -Atc "SELECT to_regclass('public.email_delivery_events') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 5 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name IN ('status','message_id','error_details','delivered_at','updated_at')" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name = 'provider'" | grep -qx t
@@ -125,6 +128,7 @@ jobs:
             portal_request_id UUID;
             duplicate_project_blocked BOOLEAN := FALSE;
             cross_client_request_blocked BOOLEAN := FALSE;
+            cross_client_notification_blocked BOOLEAN := FALSE;
           BEGIN
             IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
               RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
@@ -334,6 +338,24 @@ jobs:
               (request_id, team_id, client_id, to_status, changed_by_membership_id)
             VALUES
               (portal_request_id, team_id, client_a_id, 'pending', membership_a_id);
+            INSERT INTO portal_notifications
+              (team_id, client_id, membership_id, request_id, event_type, title, message)
+            VALUES
+              (team_id, client_a_id, membership_a_id, portal_request_id,
+               'request_status_updated', 'CI notification', 'Client A private notification');
+
+            BEGIN
+              INSERT INTO portal_notifications
+                (team_id, client_id, membership_id, request_id, event_type, title, message)
+              VALUES
+                (team_id, client_a_id, membership_b_id, portal_request_id,
+                 'request_status_updated', 'Bad notification', 'Must be rejected');
+            EXCEPTION WHEN foreign_key_violation THEN
+              cross_client_notification_blocked := TRUE;
+            END;
+            IF NOT cross_client_notification_blocked THEN
+              RAISE EXCEPTION 'Cross-client notification membership was accepted';
+            END IF;
 
             IF EXISTS (
               SELECT 1

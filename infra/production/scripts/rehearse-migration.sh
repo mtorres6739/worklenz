@@ -98,6 +98,126 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400050_portal_request_notifications.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.portal_notifications') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'user_notifications'
+              AND column_name = 'portal_request_id'
+         )
+         AND (
+           SELECT COUNT(*) = 3
+             FROM pg_constraint
+            WHERE conname IN (
+              'user_notifications_portal_request_id_fk',
+              'portal_notifications_membership_scope_fk',
+              'portal_notifications_request_scope_fk'
+            )
+         );" | grep -qx t
+  docker exec -i "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -qAt <<'SQL' \
+    | grep -qx t
+BEGIN;
+DO $$
+DECLARE
+  staff_id UUID;
+  tenant_id UUID;
+  client_a_id UUID;
+  client_b_id UUID;
+  portal_user_a_id UUID;
+  portal_user_b_id UUID;
+  membership_a_id UUID;
+  membership_b_id UUID;
+  service_id UUID;
+  request_id UUID;
+  cross_client_blocked BOOLEAN := FALSE;
+BEGIN
+  SELECT id, active_team
+    INTO staff_id, tenant_id
+    FROM users
+   WHERE active_team IS NOT NULL
+   ORDER BY created_at
+   LIMIT 1;
+  IF staff_id IS NULL OR tenant_id IS NULL THEN
+    RAISE EXCEPTION 'Notification rehearsal requires an existing staff tenant';
+  END IF;
+
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Notification rehearsal client A', tenant_id,
+     'notification-rehearsal-a@example.invalid', 'Notification rehearsal A',
+     'Portal A', 'active', TRUE)
+  RETURNING id INTO client_a_id;
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Notification rehearsal client B', tenant_id,
+     'notification-rehearsal-b@example.invalid', 'Notification rehearsal B',
+     'Portal B', 'active', TRUE)
+  RETURNING id INTO client_b_id;
+  INSERT INTO portal_client_users (email, name, password_hash)
+  VALUES
+    ('notification-rehearsal-a@example.invalid', 'Portal A', 'rehearsal-only')
+  RETURNING id INTO portal_user_a_id;
+  INSERT INTO portal_client_users (email, name, password_hash)
+  VALUES
+    ('notification-rehearsal-b@example.invalid', 'Portal B', 'rehearsal-only')
+  RETURNING id INTO portal_user_b_id;
+  INSERT INTO portal_client_memberships
+    (client_user_id, team_id, client_id, role, access_level, invited_by, accepted_at)
+  VALUES
+    (portal_user_a_id, tenant_id, client_a_id, 'member', 'comment', staff_id,
+     CURRENT_TIMESTAMP)
+  RETURNING id INTO membership_a_id;
+  INSERT INTO portal_client_memberships
+    (client_user_id, team_id, client_id, role, access_level, invited_by, accepted_at)
+  VALUES
+    (portal_user_b_id, tenant_id, client_b_id, 'member', 'comment', staff_id,
+     CURRENT_TIMESTAMP)
+  RETURNING id INTO membership_b_id;
+  INSERT INTO portal_services
+    (team_id, created_by, name, service_key, status, service_data)
+  VALUES
+    (tenant_id, staff_id, 'Notification rehearsal service', 'NREH', 'active',
+     '{}'::JSONB)
+  RETURNING id INTO service_id;
+  INSERT INTO portal_requests
+    (request_no, team_id, client_id, service_id, submitted_by_membership_id,
+     request_data)
+  VALUES
+    ('NREH-000001', tenant_id, client_a_id, service_id, membership_a_id,
+     '{}'::JSONB)
+  RETURNING id INTO request_id;
+
+  INSERT INTO portal_notifications
+    (team_id, client_id, membership_id, request_id, event_type, title, message)
+  VALUES
+    (tenant_id, client_a_id, membership_a_id, request_id,
+     'request_status_updated', 'Rehearsal notification', 'Scoped notification');
+
+  BEGIN
+    INSERT INTO portal_notifications
+      (team_id, client_id, membership_id, request_id, event_type, title, message)
+    VALUES
+      (tenant_id, client_a_id, membership_b_id, request_id,
+       'request_status_updated', 'Bad notification', 'Must fail');
+  EXCEPTION WHEN foreign_key_violation THEN
+    cross_client_blocked := TRUE;
+  END;
+  IF NOT cross_client_blocked THEN
+    RAISE EXCEPTION 'Cross-client notification scope was not enforced';
+  END IF;
+END
+$$;
+SELECT COUNT(*) = 1
+  FROM portal_notifications
+ WHERE title = 'Rehearsal notification';
+ROLLBACK;
+SQL
+  ;;
 2026072400040_portal_services_requests.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.portal_services') IS NOT NULL
