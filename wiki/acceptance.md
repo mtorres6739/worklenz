@@ -283,3 +283,30 @@ remain.
 
 The historical Admin Center branding 404 is closed. The authenticated branding check
 is now part of every manual release smoke test.
+
+### Invoice and payment foundation: 2026-07-24
+
+- Deployed immutable SHA:
+  `809c0af8c4ff660851e2a0690452e125fbe4ad88`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/30128177691>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/30128177681>.
+- The complete candidate migration chain applied to an isolated encrypted production
+  restore. Migration `2026072400060` then replayed twice without duplication, and its
+  invoice-total, refund-bound, cross-client, and one-active-payment constraints passed.
+- Production runs the exact backend, frontend, database, and gateway images for the
+  release SHA. Internal health, schema, backup-age, authenticated branding/project/task
+  CRUD, public health, and Cloudflare-only origin checks passed.
+- The smoke-test project and task were removed, and the remote rehearsal workspace was
+  cleaned. The post-deploy encrypted backup is
+  `postgres/daily/worklenz-20260724T214422Z.dump.age`.
+- `FEATURE_CLIENT_PORTAL_INVOICES`, `FEATURE_CLIENT_PORTAL_PAYMENTS`, and
+  `FEATURE_STRIPE_CHECKOUT` remain disabled. No Stripe credential was copied from a
+  global secret store into Worklenz production.
+
+The invoice/payment code and additive schema are live but inaccessible. Activation
+remains gated on the expanded Client A/Client B invoice, PDF, evidence, notification,
+search, and Socket.IO isolation suite, followed by the staff/client invoice workflow.
+Stripe activation additionally requires Worklenz-specific test-mode credentials,
+expected-account verification, signed webhook tests, reconciliation, and refund
+evidence.

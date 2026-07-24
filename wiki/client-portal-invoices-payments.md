@@ -119,7 +119,7 @@ authenticated portal actor's team and client IDs.
 10. Enable live payments only after the expected Stripe account, signed webhook,
     reconciliation, refund, backup, and rollback evidence is reviewed.
 
-## Local candidate evidence
+## Candidate and production-foundation evidence
 
 On 2026-07-24 the candidate passed:
 
@@ -134,6 +134,22 @@ On 2026-07-24 the candidate passed:
 - tenant, line-total, refund-bound, cross-scope payment, and active-payment-race
   database checks.
 
-This is local release-candidate evidence only. The feature remains fail-closed until the
-encrypted production restore rehearsal, immutable CI/image scans, and staged internal
-activation pass.
+Immutable SHA `809c0af8c4ff660851e2a0690452e125fbe4ad88` then passed:
+
+- CI run <https://github.com/mtorres6739/worklenz/actions/runs/30128177691>;
+- immutable image builds and critical scans in
+  <https://github.com/mtorres6739/worklenz/actions/runs/30128177681>;
+- the full migration chain against an isolated restore of the newest encrypted
+  production backup;
+- two idempotent replays of `2026072400060`, including invoice arithmetic, refund,
+  cross-client, and active-payment constraints;
+- exact-SHA production deployment and backend, frontend, database, gateway, Redis,
+  ClamAV, schema, public-health, backup-age, and authenticated CRUD checks; and
+- a clean encrypted post-deploy backup at
+  `postgres/daily/worklenz-20260724T214422Z.dump.age`.
+
+The production foundation is deployed, but Invoices, Payments, and Stripe Checkout
+remain false. This is intentional: invoice access still needs the expanded Client
+A/Client B isolation gate and the staged staff/client workflow walkthrough. Stripe also
+needs a Worklenz-specific account decision, test-mode credentials, a signed webhook,
+and test-mode reconciliation evidence before configuration or activation.
