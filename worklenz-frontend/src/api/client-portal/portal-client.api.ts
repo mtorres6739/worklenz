@@ -36,6 +36,9 @@ export interface PortalSession {
     services: boolean;
     requests: boolean;
     requestNotifications: boolean;
+    invoices: boolean;
+    payments: boolean;
+    stripeCheckout: boolean;
   };
 }
 
@@ -152,19 +155,83 @@ export interface PortalRequestAttachment {
 
 export interface PortalNotification {
   id: string;
-  request_id: string;
-  req_no: string;
+  request_id?: string | null;
+  req_no?: string | null;
+  invoice_id?: string | null;
+  invoice_no?: string | null;
   event_type:
     | 'request_created'
     | 'request_status_updated'
     | 'request_assigned'
     | 'request_comment_added'
-    | 'request_attachment_added';
+    | 'request_attachment_added'
+    | 'invoice_sent'
+    | 'invoice_payment_pending'
+    | 'invoice_paid'
+    | 'invoice_payment_failed'
+    | 'invoice_refunded';
   title: string;
   message: string;
   event_data: Record<string, unknown>;
   read_at?: string | null;
   created_at: string;
+}
+
+export interface PortalInvoice {
+  id: string;
+  invoiceNumber: string;
+  amount: number;
+  subtotal: number;
+  discountType: 'none' | 'percentage' | 'fixed';
+  discountValue: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  currency: string;
+  status: 'sent' | 'payment_pending' | 'paid' | 'overdue' | 'cancelled';
+  dueDate?: string | null;
+  sentAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestNumber?: string | null;
+  serviceName?: string | null;
+  isOverdue?: boolean;
+}
+
+export interface PortalInvoiceDetails extends PortalInvoice {
+  notes?: string | null;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitAmount: number;
+    lineAmount: number;
+    position: number;
+  }>;
+  client: {
+    id: string;
+    name: string;
+    companyName?: string | null;
+  };
+  payments: Array<{
+    provider: 'stripe' | 'manual';
+    status: string;
+    amount: number;
+    currency: string;
+    refunded_amount: number;
+    provider_reference?: string | null;
+    succeeded_at?: string | null;
+    failed_at?: string | null;
+    refunded_at?: string | null;
+    created_at: string;
+  }>;
+}
+
+export interface PortalPaymentSettings {
+  manualEnabled: boolean;
+  manualInstructions?: string | null;
+  stripeEnabled: boolean;
 }
 
 const baseQuery = fetchBaseQuery({
@@ -196,6 +263,8 @@ export const portalClientApi = createApi({
     'PortalRequestComments',
     'PortalRequestAttachments',
     'PortalNotifications',
+    'PortalInvoices',
+    'PortalPaymentSettings',
   ],
   endpoints: builder => ({
     getSession: builder.query<PortalSession, void>({
@@ -447,6 +516,81 @@ export const portalClientApi = createApi({
       transformResponse: (response: ServerResponse<{ updated: number }>) => response.body,
       invalidatesTags: ['PortalNotifications'],
     }),
+    getPortalInvoices: builder.query<
+      { invoices: PortalInvoice[]; total: number; page: number; limit: number },
+      { page?: number; limit?: number; status?: string; search?: string } | void
+    >({
+      query: params => {
+        const search = new URLSearchParams();
+        if (params?.page) search.set('page', String(params.page));
+        if (params?.limit) search.set('limit', String(params.limit));
+        if (params?.status) search.set('status', params.status);
+        if (params?.search) search.set('search', params.search);
+        return `/invoices${search.size ? `?${search.toString()}` : ''}`;
+      },
+      transformResponse: (
+        response: ServerResponse<{
+          invoices: PortalInvoice[];
+          total: number;
+          page: number;
+          limit: number;
+        }>
+      ) => response.body,
+      providesTags: ['PortalInvoices'],
+    }),
+    getPortalInvoice: builder.query<PortalInvoiceDetails, string>({
+      query: id => `/invoices/${id}`,
+      transformResponse: (response: ServerResponse<PortalInvoiceDetails>) => response.body,
+      providesTags: (_result, _error, id) => [{ type: 'PortalInvoices', id }],
+    }),
+    getPortalPaymentSettings: builder.query<PortalPaymentSettings, void>({
+      query: () => '/invoices/payment-settings',
+      transformResponse: (response: ServerResponse<PortalPaymentSettings>) => response.body,
+      providesTags: ['PortalPaymentSettings'],
+    }),
+    createPortalInvoiceCheckout: builder.mutation<
+      { checkoutUrl: string; sessionId: string },
+      string
+    >({
+      query: id => ({
+        url: `/invoices/${id}/checkout`,
+        method: 'POST',
+      }),
+      transformResponse: (
+        response: ServerResponse<{ checkoutUrl: string; sessionId: string }>
+      ) => response.body,
+      invalidatesTags: (_result, _error, id) => [
+        { type: 'PortalInvoices', id },
+        'PortalInvoices',
+      ],
+    }),
+    submitPortalPaymentEvidence: builder.mutation<
+      { id: string; status: string },
+      { id: string; file: File }
+    >({
+      query: ({ id, file }) => {
+        const body = new FormData();
+        body.append('file', file);
+        return {
+          url: `/invoices/${id}/payment-evidence`,
+          method: 'POST',
+          body,
+        };
+      },
+      transformResponse: (response: ServerResponse<{ id: string; status: string }>) =>
+        response.body,
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'PortalInvoices', id },
+        'PortalInvoices',
+      ],
+    }),
+    downloadPortalInvoice: builder.mutation<Blob, string>({
+      query: id => ({
+        url: `/invoices/${id}/download`,
+        method: 'GET',
+        responseHandler: (response: Response) => response.blob(),
+      }),
+    }),
   }),
 });
 
@@ -481,4 +625,10 @@ export const {
   useGetPortalNotificationUnreadCountQuery,
   useMarkPortalNotificationReadMutation,
   useMarkAllPortalNotificationsReadMutation,
+  useGetPortalInvoicesQuery,
+  useGetPortalInvoiceQuery,
+  useGetPortalPaymentSettingsQuery,
+  useCreatePortalInvoiceCheckoutMutation,
+  useSubmitPortalPaymentEvidenceMutation,
+  useDownloadPortalInvoiceMutation,
 } = portalClientApi;

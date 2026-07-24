@@ -56,6 +56,27 @@ if (process.env.NODE_ENV === "production") {
       throw new Error(`FEATURE_SLACK requires: ${missingSlack.join(", ")}`);
     }
   }
+  if (process.env.FEATURE_STRIPE_CHECKOUT === "true") {
+    const stripeRequired = [
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "STRIPE_EXPECTED_ACCOUNT_ID",
+    ];
+    const missingStripe = stripeRequired.filter((name) => !process.env[name]);
+    if (missingStripe.length > 0) {
+      throw new Error(
+        `FEATURE_STRIPE_CHECKOUT requires: ${missingStripe.join(", ")}`,
+      );
+    }
+    if (
+      process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_") &&
+      process.env.STRIPE_ALLOW_LIVE_PAYMENTS !== "true"
+    ) {
+      throw new Error(
+        "Live Stripe payments require STRIPE_ALLOW_LIVE_PAYMENTS=true.",
+      );
+    }
+  }
 }
 
 global.Promise = require("bluebird");

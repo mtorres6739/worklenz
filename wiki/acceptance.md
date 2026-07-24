@@ -21,6 +21,12 @@
 - Portal sessions use only the separate client cookie, cross-audience bearer/handshake
   tokens fail, project grants allow one client only, and client-visible comments never
   appear in internal task comments.
+- Invoice totals are recalculated server-side; client-supplied totals cannot override
+  line items. Composite scope constraints deny cross-client invoices, payments, and
+  evidence, and one-active-payment enforcement prevents manual/card races.
+- Stripe signatures cover exact raw bytes. Redirects never mark invoices paid, webhook
+  retries are idempotent, provider metadata/amount/currency must match, and Worklenz
+  stores no card data.
 
 ## Functional and operational
 

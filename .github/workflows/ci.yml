@@ -93,6 +93,15 @@ jobs:
           psql -Atc "SELECT to_regclass('public.portal_notifications') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'user_notifications' AND column_name = 'portal_request_id'" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 2 FROM pg_constraint WHERE conname IN ('portal_notifications_membership_scope_fk','portal_notifications_request_scope_fk')" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_invoices') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_invoice_items') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_invoice_payments') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_payment_evidence') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_payment_webhook_events') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.idx_portal_invoice_payments_one_active') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'portal_invoice_payments' AND column_name = 'refunded_amount'" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 8 FROM pg_constraint WHERE conname IN ('portal_invoices_scope_unique','portal_invoices_client_scope_fk','portal_invoices_request_scope_fk','portal_invoice_items_scope_fk','portal_invoice_payments_refund_check','portal_invoice_payments_invoice_scope_fk','portal_payment_evidence_payment_scope_fk','portal_notifications_reference_check')" | grep -qx t
+          psql -f database/tests/portal-invoices-isolation.sql
           psql -Atc "SELECT to_regclass('public.email_delivery_events') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 5 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name IN ('status','message_id','error_details','delivered_at','updated_at')" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name = 'provider'" | grep -qx t

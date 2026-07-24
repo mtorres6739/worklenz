@@ -26,6 +26,7 @@ const ClientPortalLayout = () => {
   const hasClientPortalAccess = hasCapability('clientPortal');
   const hasServicesAccess = hasCapability('clientPortalServices');
   const hasRequestsAccess = hasCapability('clientPortalRequests');
+  const hasInvoicesAccess = hasCapability('clientPortalInvoices');
   const { trackMixpanelEvent } = useMixpanelTracking();
   const isAuthenticated = auth.isAuthenticated();
 
@@ -62,6 +63,7 @@ const ClientPortalLayout = () => {
   const visiblePortalItems = clientPortalItems.filter(item => {
     if (item.key === 'services') return hasServicesAccess;
     if (item.key === 'requests') return hasRequestsAccess;
+    if (item.key === 'invoices') return hasInvoicesAccess;
     return true;
   });
 

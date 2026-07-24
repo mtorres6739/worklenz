@@ -19,6 +19,9 @@ gates pass:
 
 - `FEATURE_OIDC=false`
 - `FEATURE_SLACK=false`
+- `FEATURE_CLIENT_PORTAL_INVOICES=false`
+- `FEATURE_CLIENT_PORTAL_PAYMENTS=false`
+- `FEATURE_STRIPE_CHECKOUT=false`
 
 Later-wave fail-closed flags:
 
@@ -66,8 +69,13 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   access remains gated by the separate-browser walkthrough.
   See
   [Client Portal services and requests](client-portal-services-requests.md).
-- Portal invoices, payments, chat, advertised provider integrations, and curated plugins
-  remain fail-closed and unimplemented.
+- Portal invoices, manual payments, private evidence, PDF delivery, and hosted Stripe
+  Checkout are implemented behind three chained, fail-closed flags. Their local
+  fresh-database, build, unit, signature, and tenant-constraint gates pass. The
+  encrypted production restore rehearsal and staged internal activation remain.
+  See [Client Portal invoices and payments](client-portal-invoices-payments.md).
+- Portal chat, advertised provider integrations, and curated plugins remain
+  fail-closed and unimplemented.
 
 The compatibility inventory is an upper-bound test, not permission to add new legacy
 gates. Its checked-in counts must be lowered whenever compatibility code is removed.

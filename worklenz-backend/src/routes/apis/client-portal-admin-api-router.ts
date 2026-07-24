@@ -2,10 +2,14 @@ import express from "express";
 
 import ClientPortalAdminController from "../../controllers/client-portal-admin-controller";
 import ClientPortalServicesRequestsAdminController from "../../controllers/client-portal-services-requests-admin-controller";
+import ClientPortalInvoicesAdminController from "../../controllers/client-portal-invoices-admin-controller";
 import { requireSelfHostedCapability } from "../../middlewares/validators/self-hosted-capability-validator";
 import teamOwnerOrAdminValidator from "../../middlewares/validators/team-owner-or-admin-validator";
 import portalRequestAttachmentUpload from "../../middlewares/portal-request-attachment-upload";
-import { portalRequestAttachmentLimiter } from "../../middlewares/client-portal-request-rate-limiters";
+import {
+  portalInvoicePdfLimiter,
+  portalRequestAttachmentLimiter,
+} from "../../middlewares/client-portal-request-rate-limiters";
 import safeControllerFunction from "../../shared/safe-controller-function";
 
 const router = express.Router();
@@ -81,6 +85,75 @@ router.post(
 router.post(
   "/clients/:clientId/resend-invitation",
   safeControllerFunction(ClientPortalAdminController.generateInvitation),
+);
+
+router.get(
+  "/invoices",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.list),
+);
+router.get(
+  "/payment-settings",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.paymentSettings),
+);
+router.put(
+  "/payment-settings",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(
+    ClientPortalInvoicesAdminController.updatePaymentSettings,
+  ),
+);
+router.post(
+  "/invoices",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.create),
+);
+router.get(
+  "/invoices/request/:requestId",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.byRequest),
+);
+router.get(
+  "/invoices/:id",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.details),
+);
+router.put(
+  "/invoices/:id",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.update),
+);
+router.post(
+  "/invoices/:id/send",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.send),
+);
+router.post(
+  "/invoices/:id/mark-paid",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.markPaid),
+);
+router.get(
+  "/invoices/:id/download",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  portalInvoicePdfLimiter,
+  safeControllerFunction(ClientPortalInvoicesAdminController.download),
+);
+router.get(
+  "/invoices/:id/payment-evidence/:evidenceId/download",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.downloadEvidence),
+);
+router.post(
+  "/invoices/:id/payment-evidence/:evidenceId/review",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.reviewEvidence),
+);
+router.delete(
+  "/invoices/:id",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesAdminController.cancel),
 );
 
 router.get(

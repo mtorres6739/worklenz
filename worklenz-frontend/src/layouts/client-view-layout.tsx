@@ -59,6 +59,18 @@ const ClientViewLayout = () => {
         );
       }
     );
+    socket.on(
+      'portal:invoice-event',
+      (event: { invoiceId: string }) => {
+        dispatch(
+          portalClientApi.util.invalidateTags([
+            'PortalInvoices',
+            'PortalNotifications',
+            { type: 'PortalInvoices', id: event.invoiceId },
+          ])
+        );
+      }
+    );
     return () => {
       socket.disconnect();
     };

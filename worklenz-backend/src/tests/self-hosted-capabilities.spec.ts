@@ -16,6 +16,9 @@ describe("self-hosted capability profile", () => {
     delete process.env.FEATURE_CLIENT_PORTAL_SERVICES;
     delete process.env.FEATURE_CLIENT_PORTAL_REQUESTS;
     delete process.env.FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS;
+    delete process.env.FEATURE_CLIENT_PORTAL_INVOICES;
+    delete process.env.FEATURE_CLIENT_PORTAL_PAYMENTS;
+    delete process.env.FEATURE_STRIPE_CHECKOUT;
     delete process.env.FEATURE_SLACK;
     const profile = getSelfHostedCapabilities();
     expect(profile.profile).toBe("self_hosted_full");
@@ -33,6 +36,9 @@ describe("self-hosted capability profile", () => {
     expect(
       profile.capabilities.clientPortalRequestNotifications,
     ).toBe(false);
+    expect(profile.capabilities.clientPortalInvoices).toBe(false);
+    expect(profile.capabilities.clientPortalPayments).toBe(false);
+    expect(profile.capabilities.stripeCheckout).toBe(false);
     expect(profile.capabilities.slack).toBe(false);
   });
 
@@ -89,6 +95,32 @@ describe("self-hosted capability profile", () => {
       getSelfHostedCapabilities().capabilities
         .clientPortalRequestNotifications,
     ).toBe(false);
+  });
+
+  it("keeps payments and Stripe Checkout behind the invoice capability chain", () => {
+    process.env.FEATURE_CLIENT_PORTAL = "false";
+    process.env.FEATURE_CLIENT_PORTAL_INVOICES = "true";
+    process.env.FEATURE_CLIENT_PORTAL_PAYMENTS = "true";
+    process.env.FEATURE_STRIPE_CHECKOUT = "true";
+    expect(getSelfHostedCapabilities().capabilities.clientPortalInvoices).toBe(
+      false,
+    );
+    expect(getSelfHostedCapabilities().capabilities.clientPortalPayments).toBe(
+      false,
+    );
+    expect(getSelfHostedCapabilities().capabilities.stripeCheckout).toBe(false);
+
+    process.env.FEATURE_CLIENT_PORTAL = "true";
+    expect(getSelfHostedCapabilities().capabilities.clientPortalInvoices).toBe(
+      true,
+    );
+    expect(getSelfHostedCapabilities().capabilities.clientPortalPayments).toBe(
+      true,
+    );
+    expect(getSelfHostedCapabilities().capabilities.stripeCheckout).toBe(true);
+
+    process.env.FEATURE_CLIENT_PORTAL_PAYMENTS = "false";
+    expect(getSelfHostedCapabilities().capabilities.stripeCheckout).toBe(false);
   });
 
   it("caps upload configuration at one GiB", () => {

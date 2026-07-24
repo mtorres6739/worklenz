@@ -1,4 +1,5 @@
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
+import { createHash } from "crypto";
 import { Validator } from "jsonschema";
 import { QueryResult } from "pg";
 import { Resend } from "resend";
@@ -30,6 +31,7 @@ export interface IEmail {
   subject: string;
   html: string;
   from?: string;
+  idempotencyKey?: string;
 }
 
 export interface IEmailResult {
@@ -284,6 +286,10 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
 
       for (const attempt of attempts) {
         try {
+          const recipientKey = createHash("sha256")
+            .update(attempt.recipient.toLowerCase())
+            .digest("hex")
+            .slice(0, 16);
           const result = await resend.emails.send(
             {
               from:
@@ -295,7 +301,11 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
               html: options.html,
               text: plainText,
             },
-            { idempotencyKey: `worklenz/${attempt.logId}` },
+            {
+              idempotencyKey: options.idempotencyKey
+                ? `worklenz/${options.idempotencyKey}/${recipientKey}`
+                : `worklenz/${attempt.logId}`,
+            },
           );
 
           if (result.error || !result.data?.id) {

@@ -73,6 +73,9 @@ async function sessionBody(
       services: selfHosted.clientPortalServices,
       requests: selfHosted.clientPortalRequests,
       requestNotifications: selfHosted.clientPortalRequestNotifications,
+      invoices: selfHosted.clientPortalInvoices,
+      payments: selfHosted.clientPortalPayments,
+      stripeCheckout: selfHosted.stripeCheckout,
     },
   };
 }

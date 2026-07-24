@@ -4,13 +4,23 @@
  * Used for both PDF generation and print preview
  */
 
-interface InvoiceData {
+export interface InvoiceData {
   invoiceNumber: string;
   status: string;
   createdAt: string;
   dueDate: string | null;
   amount: number;
+  subtotal: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
   currency: string;
+  items: Array<{
+    description: string;
+    quantity: number;
+    unitAmount: number;
+    lineAmount: number;
+  }>;
   isOverdue?: boolean;
   client: {
     name: string;
@@ -120,7 +130,10 @@ export class InvoiceTemplateGenerator {
    * Generate complete invoice HTML template
    */
   public static generateInvoiceHTML(invoice: InvoiceData): string {
-    const primaryColor = invoice.organization?.primaryColor || '#1890ff';
+    const configuredColor = invoice.organization?.primaryColor || '';
+    const primaryColor = /^#[0-9a-f]{6}$/i.test(configuredColor)
+      ? configuredColor
+      : '#1890ff';
     const organizationName = invoice.organization?.name || 'Your Company';
     const organizationEmail = invoice.organization?.email || '';
     const organizationPhone = invoice.organization?.phone || '';
@@ -128,7 +141,6 @@ export class InvoiceTemplateGenerator {
     const organizationAddressLine2 = invoice.organization?.addressLine2 || '';
     const organizationLogo = invoice.organization?.logoUrl || '';
     const invoiceFooterMessage = invoice.organization?.invoiceFooterMessage || '';
-    const serviceName = invoice.request?.service?.name || 'Service Items';
     const clientAddressParts = this.getClientAddressParts(invoice.client);
 
     return `
@@ -439,12 +451,14 @@ export class InvoiceTemplateGenerator {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>${this.escapeHtml(serviceName)}</td>
-                  <td>1</td>
-                  <td>${this.formatCurrency(invoice.amount, invoice.currency)}</td>
-                  <td>${this.formatCurrency(invoice.amount, invoice.currency)}</td>
-                </tr>
+                ${invoice.items.map(item => `
+                  <tr>
+                    <td>${this.escapeHtml(item.description)}</td>
+                    <td>${item.quantity.toLocaleString('en-US', { maximumFractionDigits: 3 })}</td>
+                    <td>${this.formatCurrency(item.unitAmount, invoice.currency)}</td>
+                    <td>${this.formatCurrency(item.lineAmount, invoice.currency)}</td>
+                  </tr>
+                `).join('')}
               </tbody>
             </table>
 
@@ -452,11 +466,17 @@ export class InvoiceTemplateGenerator {
               <div class="totals-box">
                 <div class="totals-row">
                   <span>Subtotal</span>
-                  <span>${this.formatCurrency(invoice.amount, invoice.currency)}</span>
+                  <span>${this.formatCurrency(invoice.subtotal, invoice.currency)}</span>
                 </div>
+                ${invoice.discountAmount > 0 ? `
+                  <div class="totals-row">
+                    <span>Discount</span>
+                    <span>-${this.formatCurrency(invoice.discountAmount, invoice.currency)}</span>
+                  </div>
+                ` : ''}
                 <div class="totals-row">
-                  <span>Tax (0%)</span>
-                  <span>${this.formatCurrency(0, invoice.currency)}</span>
+                  <span>Tax (${invoice.taxRate.toLocaleString('en-US', { maximumFractionDigits: 4 })}%)</span>
+                  <span>${this.formatCurrency(invoice.taxAmount, invoice.currency)}</span>
                 </div>
                 <div class="totals-row total">
                   <span>Total</span>

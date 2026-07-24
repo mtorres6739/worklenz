@@ -20,6 +20,7 @@ import {
   Modal,
   message,
   Image,
+  Input,
 } from '@/shared/antd-imports';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,6 +44,7 @@ import {
   useSendInvoiceMutation,
   useMarkInvoiceAsPaidMutation,
   useDeleteInvoiceMutation,
+  useReviewInvoicePaymentEvidenceMutation,
 } from '@/api/client-portal/client-portal-api';
 import InvoicePreviewModal from './invoice-preview-modal';
 import config from '@/config/env';
@@ -64,6 +66,8 @@ const ClientPortalInvoiceDetails: React.FC = () => {
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
   const [markAsPaid, { isLoading: isMarkingPaid }] = useMarkInvoiceAsPaidMutation();
   const [deleteInvoice, { isLoading: isDeleting }] = useDeleteInvoiceMutation();
+  const [reviewEvidence, { isLoading: isReviewingEvidence }] =
+    useReviewInvoicePaymentEvidenceMutation();
 
   const { data, isLoading, error } = useGetInvoiceDetailsQuery(invoiceId as string, {
     skip: !invoiceId,
@@ -139,16 +143,34 @@ const ClientPortalInvoiceDetails: React.FC = () => {
 
   // Handle mark as paid
   const handleMarkAsPaid = async () => {
+    let reference = '';
     Modal.confirm({
       title: t('markAsPaid.title', { defaultValue: 'Mark as Paid' }),
-      content: t('markAsPaid.confirm', {
-        defaultValue: 'Are you sure you want to mark this invoice as paid?',
-      }),
+      content: (
+        <Flex vertical gap={8}>
+          <Text>
+            Record the bank transfer, check, or other payment reference. This is kept in the
+            financial audit trail.
+          </Text>
+          <Input
+            autoFocus
+            maxLength={255}
+            placeholder="Payment reference"
+            onChange={event => {
+              reference = event.target.value.trim();
+            }}
+          />
+        </Flex>
+      ),
       okText: t('markAsPaid.okText', { defaultValue: 'Mark as Paid' }),
       cancelText: t('markAsPaid.cancelText', { defaultValue: 'Cancel' }),
       onOk: async () => {
+        if (!reference) {
+          message.error('A payment reference is required.');
+          throw new Error('Payment reference required');
+        }
         try {
-          await markAsPaid(invoiceId!).unwrap();
+          await markAsPaid({ id: invoiceId!, reference }).unwrap();
           message.success(
             t('markAsPaid.success', { defaultValue: 'Invoice marked as paid successfully' })
           );
@@ -258,7 +280,7 @@ const ClientPortalInvoiceDetails: React.FC = () => {
           <Button icon={<EyeOutlined />} onClick={() => setPreviewOpen(true)}>
             {t('previewInvoice', { defaultValue: 'Preview Invoice' })}
           </Button>
-          {invoice.status !== 'paid' && (
+          {invoice.status === 'draft' && (
             <Button icon={<EditOutlined />} onClick={handleEditInvoice}>
               {t('editInvoice', { defaultValue: 'Edit' })}
             </Button>
@@ -273,7 +295,7 @@ const ClientPortalInvoiceDetails: React.FC = () => {
               {t('sendInvoice', { defaultValue: 'Send Invoice' })}
             </Button>
           )}
-          {invoice.status === 'sent' && (
+          {['sent', 'overdue', 'payment_pending'].includes(invoice.status) && (
             <Button
               icon={<CheckCircleOutlined />}
               onClick={handleMarkAsPaid}
@@ -282,7 +304,7 @@ const ClientPortalInvoiceDetails: React.FC = () => {
               {t('markAsPaid', { defaultValue: 'Mark as Paid' })}
             </Button>
           )}
-          {invoice.status !== 'paid' && (
+          {!['paid', 'cancelled'].includes(invoice.status) && (
             <Button
               icon={<DeleteOutlined />}
               danger
@@ -587,6 +609,89 @@ const ClientPortalInvoiceDetails: React.FC = () => {
           )}
 
           {/* Created By Card */}
+          {invoice.payments?.some(payment => payment.evidence) && (
+            <Card title="Payment evidence" style={{ marginBottom: 24 }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {invoice.payments
+                  .filter(payment => payment.evidence)
+                  .map(payment => (
+                    <Card key={payment.id} size="small">
+                      <Flex vertical gap={10}>
+                        <Flex justify="space-between" gap={12}>
+                          <div>
+                            <Text strong>{payment.evidence?.fileName}</Text>
+                            <br />
+                            <Text type="secondary">
+                              Submitted by {payment.submitted_by_name || 'client'}
+                            </Text>
+                          </div>
+                          <Tag
+                            color={
+                              payment.evidence?.status === 'accepted'
+                                ? 'success'
+                                : payment.evidence?.status === 'rejected'
+                                  ? 'error'
+                                  : 'warning'
+                            }
+                          >
+                            {payment.evidence?.status}
+                          </Tag>
+                        </Flex>
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={() =>
+                            window.open(
+                              `${config.apiUrl.replace(/\/$/, '')}${API_BASE_URL}/clients/portal/invoices/${invoice.id}/payment-evidence/${payment.evidence?.id}/download`,
+                              '_blank'
+                            )
+                          }
+                        >
+                          Review file
+                        </Button>
+                        {payment.evidence?.status === 'submitted' && (
+                          <Flex gap={8}>
+                            <Button
+                              type="primary"
+                              loading={isReviewingEvidence}
+                              onClick={() =>
+                                reviewEvidence({
+                                  invoiceId: invoice.id,
+                                  evidenceId: payment.evidence!.id,
+                                  decision: 'accept',
+                                })
+                                  .unwrap()
+                                  .then(() => message.success('Payment accepted.'))
+                                  .catch(() => message.error('Unable to accept payment.'))
+                              }
+                            >
+                              Accept payment
+                            </Button>
+                            <Button
+                              danger
+                              loading={isReviewingEvidence}
+                              onClick={() =>
+                                reviewEvidence({
+                                  invoiceId: invoice.id,
+                                  evidenceId: payment.evidence!.id,
+                                  decision: 'reject',
+                                  note: 'Evidence rejected by finance administrator',
+                                })
+                                  .unwrap()
+                                  .then(() => message.success('Evidence rejected.'))
+                                  .catch(() => message.error('Unable to reject evidence.'))
+                              }
+                            >
+                              Reject
+                            </Button>
+                          </Flex>
+                        )}
+                      </Flex>
+                    </Card>
+                  ))}
+              </Space>
+            </Card>
+          )}
+
           {invoice.createdBy && (
             <Card title={t('createdBy', { defaultValue: 'Created By' })}>
               <Flex align="center" gap={12}>

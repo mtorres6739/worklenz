@@ -33,6 +33,7 @@ const ClientViewSiderMenu = ({ isCollapsed, setIsCollapsed }: ClientViewSiderMen
   const menuItems = clientViewItems.filter(item => {
     if (item.key === 'services') return session?.capabilities.services;
     if (item.key === 'requests') return session?.capabilities.requests;
+    if (item.key === 'invoices') return session?.capabilities.invoices;
     return true;
   });
 

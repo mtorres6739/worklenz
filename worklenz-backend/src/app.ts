@@ -32,6 +32,7 @@ import verifySnsMessage from "./middlewares/verify-sns-message";
 import { getJsonUploadBodyLimitBytes } from "./shared/self-hosted-capabilities";
 import slackWebhookRouter from "./routes/slack-webhook-router";
 import ResendWebhookController from "./controllers/resend-webhook-controller";
+import stripePortalWebhookRouter from "./routes/stripe-portal-webhook-router";
 
 const app = express();
 
@@ -55,6 +56,8 @@ app.set("trust proxy", 1);
 // Slack signatures cover the exact request bytes. Mount these parsers before
 // the global JSON/urlencoded parsers so signed webhook bodies are not mutated.
 app.use("/webhook/slack", slackWebhookRouter);
+// Stripe also signs the exact request bytes. Card details never transit this app.
+app.use("/webhook/stripe/portal", stripePortalWebhookRouter);
 
 // Basic middleware setup
 app.use(compression());

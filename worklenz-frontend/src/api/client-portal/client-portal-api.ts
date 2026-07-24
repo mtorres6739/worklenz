@@ -96,6 +96,36 @@ export interface ClientPortalInvoice {
 }
 
 export interface ClientPortalInvoiceDetails extends ClientPortalInvoice {
+  version: number;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitAmount: number;
+    lineAmount: number;
+    position: number;
+  }>;
+  payments?: Array<{
+    id: string;
+    provider: 'stripe' | 'manual';
+    status: string;
+    amount: number;
+    currency: string;
+    submitted_by_name?: string | null;
+    submitted_by_email?: string | null;
+    provider_reference?: string | null;
+    created_at: string;
+    succeeded_at?: string | null;
+    evidence?: {
+      id: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+      status: 'submitted' | 'accepted' | 'rejected';
+      reviewNote?: string | null;
+      createdAt: string;
+    } | null;
+  }>;
   notes?: string;
   paymentProofUrl?: string | null;
   taxRate?: number;
@@ -139,6 +169,14 @@ export interface ClientPortalInvoiceDetails extends ClientPortalInvoice {
   };
 }
 
+export interface PortalPaymentSettingsAdmin {
+  manual_enabled: boolean;
+  manual_instructions?: string | null;
+  stripe_enabled: boolean;
+  default_payment_terms_days: number;
+  updated_at?: string;
+}
+
 // Invoice mutation request/response interfaces
 export interface UpdateInvoiceRequest {
   amount?: number;
@@ -152,6 +190,13 @@ export interface UpdateInvoiceRequest {
   discountValue?: number;
   discountAmount?: number;
   subtotal?: number;
+  requestId: string;
+  version?: number;
+  lineItems: Array<{
+    description: string;
+    quantity: number;
+    rate: number;
+  }>;
 }
 
 export interface UpdateInvoiceResponseBody {
@@ -776,11 +821,23 @@ export const clientPortalApi = createApi({
       },
       {
         requestId: string;
-        amount: number;
+        amount?: number;
         currency?: string;
         dueDate?: string;
         notes?: string;
         status?: string;
+        lineItems: Array<{
+          description: string;
+          quantity: number;
+          rate: number;
+          amount?: number;
+        }>;
+        taxRate?: number;
+        discountType?: string;
+        discountValue?: number;
+        subtotal?: number;
+        discountAmount?: number;
+        taxAmount?: number;
       }
     >({
       query: invoiceData => ({
@@ -819,12 +876,20 @@ export const clientPortalApi = createApi({
       invalidatesTags: (result, error, id) => [{ type: 'Invoices', id }, 'Invoices', 'Dashboard'],
     }),
 
-    markInvoiceAsPaid: builder.mutation<MarkInvoiceAsPaidResponse, string>({
-      query: id => ({
+    markInvoiceAsPaid: builder.mutation<
+      MarkInvoiceAsPaidResponse,
+      { id: string; reference: string; note?: string }
+    >({
+      query: ({ id, reference, note }) => ({
         url: `/clients/portal/invoices/${id}/mark-paid`,
         method: 'POST',
+        body: { reference, note },
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Invoices', id }, 'Invoices', 'Dashboard'],
+      invalidatesTags: (result, error, { id }) => [
+        { type: 'Invoices', id },
+        'Invoices',
+        'Dashboard',
+      ],
     }),
 
     deleteInvoice: builder.mutation<void, string>({
@@ -833,6 +898,45 @@ export const clientPortalApi = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: ['Invoices', 'Dashboard'],
+    }),
+    reviewInvoicePaymentEvidence: builder.mutation<
+      ClientPortalInvoiceDetails,
+      {
+        invoiceId: string;
+        evidenceId: string;
+        decision: 'accept' | 'reject';
+        note?: string;
+      }
+    >({
+      query: ({ invoiceId, evidenceId, decision, note }) => ({
+        url: `/clients/portal/invoices/${invoiceId}/payment-evidence/${evidenceId}/review`,
+        method: 'POST',
+        body: { decision, note },
+      }),
+      transformResponse: (response: { body: ClientPortalInvoiceDetails }) => response.body,
+      invalidatesTags: (_result, _error, { invoiceId }) => [
+        { type: 'Invoices', id: invoiceId },
+        'Invoices',
+        'Dashboard',
+      ],
+    }),
+    getPortalPaymentSettingsAdmin: builder.query<
+      { done: boolean; body: PortalPaymentSettingsAdmin },
+      void
+    >({
+      query: () => '/clients/portal/payment-settings',
+      providesTags: ['Invoices'],
+    }),
+    updatePortalPaymentSettingsAdmin: builder.mutation<
+      { done: boolean; body: PortalPaymentSettingsAdmin },
+      PortalPaymentSettingsAdmin
+    >({
+      query: body => ({
+        url: '/clients/portal/payment-settings',
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['Invoices'],
     }),
 
     // Chat (Client Portal Side - uses client token auth)
@@ -1584,6 +1688,9 @@ export const {
   useSendInvoiceMutation,
   useMarkInvoiceAsPaidMutation,
   useDeleteInvoiceMutation,
+  useReviewInvoicePaymentEvidenceMutation,
+  useGetPortalPaymentSettingsAdminQuery,
+  useUpdatePortalPaymentSettingsAdminMutation,
 
   // Chat
   useGetChatsQuery,

@@ -36,4 +36,11 @@ export const clientPortalItems: ClientPortalMenuItems[] = [
     icon: React.createElement(FileTextOutlined),
     element: false,
   },
+  {
+    key: 'invoices',
+    name: 'invoices',
+    endpoint: 'invoices',
+    icon: React.createElement(FileTextOutlined),
+    element: false,
+  },
 ];

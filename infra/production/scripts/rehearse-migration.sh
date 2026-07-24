@@ -107,6 +107,150 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400060_portal_invoices_payments.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.portal_invoices') IS NOT NULL
+         AND to_regclass('public.portal_invoice_items') IS NOT NULL
+         AND to_regclass('public.portal_invoice_payments') IS NOT NULL
+         AND to_regclass('public.portal_payment_evidence') IS NOT NULL
+         AND to_regclass('public.portal_payment_webhook_events') IS NOT NULL
+         AND to_regclass('public.idx_portal_invoice_payments_one_active') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'portal_invoice_payments'
+              AND column_name = 'refunded_amount'
+         )
+         AND (
+           SELECT COUNT(*) = 8
+             FROM pg_constraint
+            WHERE conname IN (
+              'portal_invoices_scope_unique',
+              'portal_invoices_client_scope_fk',
+              'portal_invoices_request_scope_fk',
+              'portal_invoice_items_scope_fk',
+              'portal_invoice_payments_refund_check',
+              'portal_invoice_payments_invoice_scope_fk',
+              'portal_payment_evidence_payment_scope_fk',
+              'portal_notifications_reference_check'
+            )
+         );" | grep -qx t
+  docker exec -i "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -qAt <<'SQL' \
+    | grep -qx t
+BEGIN;
+DO $$
+DECLARE
+  staff_id UUID;
+  tenant_id UUID;
+  client_a_id UUID;
+  client_b_id UUID;
+  service_id UUID;
+  request_id UUID;
+  invoice_id UUID;
+  active_payment_blocked BOOLEAN := FALSE;
+  cross_client_blocked BOOLEAN := FALSE;
+  bad_refund_blocked BOOLEAN := FALSE;
+BEGIN
+  SELECT id, active_team
+    INTO staff_id, tenant_id
+    FROM users
+   WHERE active_team IS NOT NULL
+   ORDER BY created_at
+   LIMIT 1;
+  IF staff_id IS NULL OR tenant_id IS NULL THEN
+    RAISE EXCEPTION 'Invoice rehearsal requires an existing staff tenant';
+  END IF;
+
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Invoice rehearsal client A', tenant_id,
+     'invoice-rehearsal-a@example.invalid', 'Invoice rehearsal A',
+     'Portal A', 'active', TRUE)
+  RETURNING id INTO client_a_id;
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Invoice rehearsal client B', tenant_id,
+     'invoice-rehearsal-b@example.invalid', 'Invoice rehearsal B',
+     'Portal B', 'active', TRUE)
+  RETURNING id INTO client_b_id;
+  INSERT INTO portal_services
+    (team_id, created_by, name, service_key, status, service_data)
+  VALUES
+    (tenant_id, staff_id, 'Invoice rehearsal service', 'IREH', 'active',
+     '{}'::JSONB)
+  RETURNING id INTO service_id;
+  INSERT INTO portal_requests
+    (request_no, team_id, client_id, service_id, request_data)
+  VALUES
+    ('IREH-000001', tenant_id, client_a_id, service_id, '{}'::JSONB)
+  RETURNING id INTO request_id;
+  INSERT INTO portal_invoices
+    (invoice_no, team_id, client_id, request_id, created_by_user_id,
+     status, subtotal, amount)
+  VALUES
+    ('INV-REHEARSAL', tenant_id, client_a_id, request_id, staff_id,
+     'sent', 100, 100)
+  RETURNING id INTO invoice_id;
+  INSERT INTO portal_invoice_items
+    (invoice_id, team_id, client_id, position, description, quantity,
+     unit_amount, line_amount)
+  VALUES
+    (invoice_id, tenant_id, client_a_id, 0, 'Rehearsal item', 2, 50, 100);
+  INSERT INTO portal_invoice_payments
+    (invoice_id, team_id, client_id, provider, status, amount, currency,
+     idempotency_key)
+  VALUES
+    (invoice_id, tenant_id, client_a_id, 'stripe', 'checkout_pending',
+     100, 'USD', 'rehearsal-active');
+
+  BEGIN
+    INSERT INTO portal_invoice_payments
+      (invoice_id, team_id, client_id, provider, status, amount, currency,
+       idempotency_key)
+    VALUES
+      (invoice_id, tenant_id, client_a_id, 'manual', 'pending_review',
+       100, 'USD', 'rehearsal-race');
+  EXCEPTION WHEN unique_violation THEN
+    active_payment_blocked := TRUE;
+  END;
+
+  BEGIN
+    INSERT INTO portal_invoice_payments
+      (invoice_id, team_id, client_id, provider, status, amount, currency,
+       refunded_amount, idempotency_key)
+    VALUES
+      (invoice_id, tenant_id, client_a_id, 'stripe', 'refunded',
+       100, 'USD', 101, 'rehearsal-bad-refund');
+  EXCEPTION WHEN check_violation THEN
+    bad_refund_blocked := TRUE;
+  END;
+
+  BEGIN
+    INSERT INTO portal_invoice_payments
+      (invoice_id, team_id, client_id, provider, status, amount, currency,
+       idempotency_key)
+    VALUES
+      (invoice_id, tenant_id, client_b_id, 'manual', 'failed',
+       100, 'USD', 'rehearsal-cross-client');
+  EXCEPTION WHEN foreign_key_violation THEN
+    cross_client_blocked := TRUE;
+  END;
+
+  IF NOT active_payment_blocked OR NOT bad_refund_blocked OR NOT cross_client_blocked THEN
+    RAISE EXCEPTION 'Invoice payment constraints failed closed';
+  END IF;
+END
+$$;
+SELECT COUNT(*) = 1
+  FROM portal_invoice_items
+ WHERE description = 'Rehearsal item'
+   AND line_amount = 100;
+ROLLBACK;
+SQL
+  ;;
 2026072400050_portal_request_notifications.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.portal_notifications') IS NOT NULL

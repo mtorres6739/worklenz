@@ -29,6 +29,10 @@ export function portalResetUrl(rawToken: string): string {
   return `${appOrigin}/portal/reset-password?token=${encodeURIComponent(rawToken)}`;
 }
 
+export function portalInvoiceUrl(invoiceId: string): string {
+  return `${appOrigin}/client-portal/invoices/${encodeURIComponent(invoiceId)}`;
+}
+
 export async function sendPortalInvitation(input: {
   teamId: string;
   email: string;
@@ -74,6 +78,46 @@ export async function sendPortalPasswordReset(input: {
     from: await getEmailIdentityForTeam(input.teamId),
     subject: "Reset your SDM client portal password",
     html,
+  });
+  return result.success;
+}
+
+export async function sendPortalInvoice(input: {
+  teamId: string;
+  emails: string[];
+  clientName: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  dueDate: string | null;
+}): Promise<boolean> {
+  const link = portalInvoiceUrl(input.invoiceId);
+  const total = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: input.currency,
+  }).format(input.amount);
+  const due = input.dueDate
+    ? new Date(`${input.dueDate}T12:00:00Z`).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      })
+    : "upon receipt";
+  const html = emailShell(
+    `Invoice ${input.invoiceNumber}`,
+    `<p style="line-height:1.6">Hello ${escapeHtml(input.clientName)},</p>
+     <p style="line-height:1.6">A new invoice for <strong>${escapeHtml(total)}</strong> is available in your secure client portal. Payment is due ${escapeHtml(due)}.</p>
+     <p style="margin:28px 0"><a href="${escapeHtml(link)}" style="background:#1677ff;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">View invoice</a></p>
+     <p style="color:#64748b;font-size:13px">Sign in to the client portal to view or download the invoice. This email contains no payment credentials.</p>`,
+  );
+  const result = await sendEmailEnhanced({
+    to: input.emails,
+    from: await getEmailIdentityForTeam(input.teamId),
+    subject: `Invoice ${input.invoiceNumber} from SDM`,
+    html,
+    idempotencyKey: `portal-invoice/${input.invoiceId}`,
   });
   return result.success;
 }

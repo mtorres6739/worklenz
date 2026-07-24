@@ -29,6 +29,9 @@ export const SELF_HOSTED_CAPABILITY_KEYS = [
   "clientPortalServices",
   "clientPortalRequests",
   "clientPortalRequestNotifications",
+  "clientPortalInvoices",
+  "clientPortalPayments",
+  "stripeCheckout",
   "slack",
   "oidc",
   "microsoftTeams",
@@ -89,6 +92,12 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
   const clientPortalRequestsEnabled =
     clientPortalServicesEnabled &&
     process.env.FEATURE_CLIENT_PORTAL_REQUESTS === "true";
+  const clientPortalInvoicesEnabled =
+    clientPortalEnabled &&
+    process.env.FEATURE_CLIENT_PORTAL_INVOICES === "true";
+  const clientPortalPaymentsEnabled =
+    clientPortalInvoicesEnabled &&
+    process.env.FEATURE_CLIENT_PORTAL_PAYMENTS === "true";
   return {
     profile: "self_hosted_full",
     schemaVersion: 1,
@@ -125,6 +134,11 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
       clientPortalRequestNotifications:
         clientPortalRequestsEnabled &&
         process.env.FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS === "true",
+      clientPortalInvoices: clientPortalInvoicesEnabled,
+      clientPortalPayments: clientPortalPaymentsEnabled,
+      stripeCheckout:
+        clientPortalPaymentsEnabled &&
+        process.env.FEATURE_STRIPE_CHECKOUT === "true",
       slack: process.env.FEATURE_SLACK === "true",
       oidc: process.env.FEATURE_OIDC === "true",
       microsoftTeams: process.env.FEATURE_MICROSOFT_TEAMS === "true",

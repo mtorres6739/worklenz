@@ -43,6 +43,27 @@ const ClientPortalRequestDetails = lazy(
     'ClientPortalRequestDetails'
   )
 );
+const ClientPortalInvoices = lazy(
+  ChunkErrorHandler.wrapLazyImport(
+    () => import('@/pages/client-portal/invoices/client-portal-invoices'),
+    'ClientPortalInvoices'
+  )
+);
+const ClientPortalInvoiceBuilder = lazy(
+  ChunkErrorHandler.wrapLazyImport(
+    () => import('@/pages/client-portal/invoices/invoice-builder/invoice-builder'),
+    'ClientPortalInvoiceBuilder'
+  )
+);
+const ClientPortalInvoiceDetails = lazy(
+  ChunkErrorHandler.wrapLazyImport(
+    () =>
+      import(
+        '@/pages/client-portal/invoices/invoice-details/client-portal-invoice-details'
+      ),
+    'ClientPortalInvoiceDetails'
+  )
+);
 
 const loading = <Spin size="large" style={{ display: 'block', margin: '50px auto' }} />;
 
@@ -98,6 +119,22 @@ const clientPortalRoutes: RouteObject[] = [
       {
         path: 'requests/:id',
         element: guarded('clientPortalRequests', <ClientPortalRequestDetails />),
+      },
+      {
+        path: 'invoices',
+        element: guarded('clientPortalInvoices', <ClientPortalInvoices />),
+      },
+      {
+        path: 'invoices/create',
+        element: guarded('clientPortalInvoices', <ClientPortalInvoiceBuilder />),
+      },
+      {
+        path: 'invoices/:invoiceId/edit',
+        element: guarded('clientPortalInvoices', <ClientPortalInvoiceBuilder />),
+      },
+      {
+        path: 'invoices/:invoiceId',
+        element: guarded('clientPortalInvoices', <ClientPortalInvoiceDetails />),
       },
     ],
   },

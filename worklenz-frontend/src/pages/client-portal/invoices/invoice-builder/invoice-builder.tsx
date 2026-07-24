@@ -203,16 +203,25 @@ const InvoiceBuilder = () => {
       setDiscountType(existingInvoice.discountType || 'percentage');
       setDiscountValue(existingInvoice.discountValue || 0);
 
-      // Set amount as single line item for simple invoices
-      setLineItems([
-        {
-          key: generateKey(),
-          description: existingInvoice.request?.service?.name || 'Service',
-          quantity: 1,
-          rate: existingInvoice.subtotal || existingInvoice.amount,
-          amount: existingInvoice.subtotal || existingInvoice.amount,
-        },
-      ]);
+      setLineItems(
+        existingInvoice.items?.length
+          ? existingInvoice.items.map(item => ({
+              key: generateKey(),
+              description: item.description,
+              quantity: item.quantity,
+              rate: item.unitAmount,
+              amount: item.lineAmount,
+            }))
+          : [
+              {
+                key: generateKey(),
+                description: existingInvoice.request?.service?.name || 'Service',
+                quantity: 1,
+                rate: existingInvoice.subtotal || existingInvoice.amount,
+                amount: existingInvoice.subtotal || existingInvoice.amount,
+              },
+            ]
+      );
     }
   }, [existingInvoice, isEditMode, form, navigate, invoiceId, t]);
 
@@ -341,6 +350,8 @@ const InvoiceBuilder = () => {
       try {
         const values = await form.validateFields();
         const updateData = {
+          requestId: existingInvoice.request?.id || '',
+          version: existingInvoice.version,
           amount: calculations.total,
           currency,
           dueDate: values.dueDate ? dayjs(values.dueDate).format('YYYY-MM-DD') : undefined,
@@ -351,6 +362,13 @@ const InvoiceBuilder = () => {
           discountValue,
           discountAmount: calculations.discount,
           subtotal: calculations.subtotal,
+          lineItems: lineItems
+            .filter(item => item.description && item.amount > 0)
+            .map(item => ({
+              description: item.description,
+              quantity: item.quantity,
+              rate: item.rate,
+            })),
         };
 
         await updateInvoice({ id: invoiceId!, data: updateData }).unwrap();

@@ -7,6 +7,8 @@ import ClientViewServiceDetails from '@/pages/client-view/services/service-detai
 import ClientViewRequests from '@/pages/client-view/requests/client-view-requests';
 import NewRequestForm from '@/pages/client-view/requests/new-request-form';
 import ClientViewRequestDetails from '@/pages/client-view/requests/request-details/client-view-request-details';
+import ClientViewInvoices from '@/pages/client-view/invoices/client-view-invoices';
+import ClientViewInvoiceDetails from '@/pages/client-view/invoices/invoice-details/client-view-invoice-details';
 import { useGetSessionQuery } from '@/api/client-portal/portal-client.api';
 import { Navigate, RouteObject } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -15,7 +17,7 @@ function PortalCapabilityRoute({
   capability,
   children,
 }: {
-  capability: 'services' | 'requests';
+  capability: 'services' | 'requests' | 'invoices';
   children: ReactNode;
 }) {
   const { data: session, isLoading } = useGetSessionQuery();
@@ -81,6 +83,22 @@ const clientViewRoutes: RouteObject[] = [
         element: (
           <PortalCapabilityRoute capability="requests">
             <ClientViewRequestDetails />
+          </PortalCapabilityRoute>
+        ),
+      },
+      {
+        path: 'invoices',
+        element: (
+          <PortalCapabilityRoute capability="invoices">
+            <ClientViewInvoices />
+          </PortalCapabilityRoute>
+        ),
+      },
+      {
+        path: 'invoices/:id',
+        element: (
+          <PortalCapabilityRoute capability="invoices">
+            <ClientViewInvoiceDetails />
           </PortalCapabilityRoute>
         ),
       },

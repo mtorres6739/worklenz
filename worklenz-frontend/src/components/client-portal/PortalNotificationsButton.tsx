@@ -66,7 +66,11 @@ const PortalNotificationsButton = () => {
                     if (!notification.read_at) {
                       await markRead(notification.id).unwrap().catch(() => undefined);
                     }
-                    navigate(`/client-portal/requests/${notification.request_id}`);
+                    navigate(
+                      notification.invoice_id
+                        ? `/client-portal/invoices/${notification.invoice_id}`
+                        : `/client-portal/requests/${notification.request_id}`
+                    );
                   }}
                 >
                   <Flex vertical gap={2} style={{ width: '100%' }}>

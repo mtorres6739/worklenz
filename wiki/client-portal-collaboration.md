@@ -1,9 +1,9 @@
 # Client Portal collaboration
 
 Wave 4 implements an original, invite-only client collaboration surface behind
-`FEATURE_CLIENT_PORTAL`. Wave 5 Services and Requests use independent capabilities and
-remain disabled in production. Invoices, payments, attachments, and chat are not part
-of the Wave 4 flag.
+`FEATURE_CLIENT_PORTAL`. Wave 5 Services, Requests, Invoices, and Payments use
+independent capabilities. Invoice/payment code does not become accessible when only
+the Wave 4 flag is enabled. Chat is not part of the Wave 4 flag.
 
 ## Released contract
 

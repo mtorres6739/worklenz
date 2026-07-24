@@ -112,6 +112,7 @@
     "slugify": "^1.6.6",
     "sns-validator": "^0.3.5",
     "socket.io": "^4.8.3",
+    "stripe": "22.3.2",
     "swagger-ui-express": "^5.0.1",
     "uglify-js": "^3.17.4",
     "winston": "^3.10.0",

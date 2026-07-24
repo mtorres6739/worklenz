@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from "express";
 import ClientPortalAuthController from "../controllers/client-portal-auth-controller";
 import ClientPortalCollaborationController from "../controllers/client-portal-collaboration-controller";
 import ClientPortalServicesRequestsController from "../controllers/client-portal-services-requests-controller";
+import ClientPortalInvoicesController from "../controllers/client-portal-invoices-controller";
 import {
   requireClientCommentAccess,
   requireClientPortalCsrf,
@@ -16,6 +17,8 @@ import {
   portalRequestAttachmentLimiter,
   portalRequestCommentLimiter,
   portalRequestCreateLimiter,
+  portalInvoiceCheckoutLimiter,
+  portalInvoicePdfLimiter,
 } from "../middlewares/client-portal-request-rate-limiters";
 import portalRequestAttachmentUpload from "../middlewares/portal-request-attachment-upload";
 import {
@@ -85,6 +88,41 @@ router.post(
 router.post(
   "/auth/switch",
   safeControllerFunction(ClientPortalAuthController.switchMembership),
+);
+
+router.get(
+  "/invoices",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesController.list),
+);
+router.get(
+  "/invoices/payment-settings",
+  requireSelfHostedCapability("clientPortalPayments"),
+  safeControllerFunction(ClientPortalInvoicesController.paymentSettings),
+);
+router.get(
+  "/invoices/:id",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  safeControllerFunction(ClientPortalInvoicesController.details),
+);
+router.post(
+  "/invoices/:id/checkout",
+  requireSelfHostedCapability("stripeCheckout"),
+  portalInvoiceCheckoutLimiter,
+  safeControllerFunction(ClientPortalInvoicesController.createCheckout),
+);
+router.post(
+  "/invoices/:id/payment-evidence",
+  requireSelfHostedCapability("clientPortalPayments"),
+  portalRequestAttachmentLimiter,
+  portalRequestAttachmentUpload,
+  safeControllerFunction(ClientPortalInvoicesController.submitPaymentEvidence),
+);
+router.get(
+  "/invoices/:id/download",
+  requireSelfHostedCapability("clientPortalInvoices"),
+  portalInvoicePdfLimiter,
+  safeControllerFunction(ClientPortalInvoicesController.download),
 );
 
 router.get(

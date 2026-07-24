@@ -35,3 +35,23 @@ export const portalRequestAttachmentLimiter = rateLimit({
     "Too many attachments were uploaded. Please try again later.",
   ),
 });
+
+export const portalInvoiceCheckoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: response(
+    "Too many payment attempts were started. Please try again later.",
+  ),
+});
+
+export const portalInvoicePdfLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: response(
+    "Too many invoice downloads were requested. Please try again later.",
+  ),
+});

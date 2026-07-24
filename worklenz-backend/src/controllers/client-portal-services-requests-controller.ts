@@ -160,17 +160,23 @@ export default class ClientPortalServicesRequestsController {
     const actor = req.portalActor!;
     const { limit, offset } = pageOptions(req);
     const result = await db.query(
-      `SELECT pn.id, pn.request_id, pn.event_type, pn.title, pn.message,
+      `SELECT pn.id, pn.request_id, pn.invoice_id, pn.event_type, pn.title, pn.message,
               pn.event_data, pn.read_at, pn.created_at,
-              pr.request_no AS req_no, COUNT(*) OVER()::INT AS full_count
+              pr.request_no AS req_no, pi.invoice_no,
+              COUNT(*) OVER()::INT AS full_count
          FROM portal_notifications pn
-         JOIN portal_requests pr
+         LEFT JOIN portal_requests pr
            ON pr.id = pn.request_id
           AND pr.team_id = pn.team_id
           AND pr.client_id = pn.client_id
+         LEFT JOIN portal_invoices pi
+           ON pi.id = pn.invoice_id
+          AND pi.team_id = pn.team_id
+          AND pi.client_id = pn.client_id
         WHERE pn.membership_id = $1::UUID
           AND pn.team_id = $2::UUID
           AND pn.client_id = $3::UUID
+          AND (pr.id IS NOT NULL OR pi.id IS NOT NULL)
         ORDER BY pn.created_at DESC, pn.id
         LIMIT $4 OFFSET $5`,
       [
