@@ -118,3 +118,43 @@ portal CORS headers, remained unreachable by direct non-Cloudflare origin traffi
 created a new encrypted daily backup. Before the designated external client, finish the
 separate-browser invitation/reset/refresh/revocation walkthrough through the staff UI
 and complete one internal business week without an unresolved severity-1 issue.
+
+## Production acceptance: 2026-07-24
+
+The staff/client separate-browser walkthrough is complete on immutable release
+`2d37e0908f41a3762d4ce241a352e427aaab96ce`.
+
+Passed in production:
+
+- client project permissions persisted after refresh, including read-only versus
+  comment-enabled access and independently hidden versus visible files;
+- staff-to-client and client-to-staff portal comments appeared in the normal task
+  drawer without leaking into internal comments;
+- removing a project grant immediately removed it from the staff drawer and client
+  list, revoked the portal session, and redirected the former client project URL to
+  the portal sign-in page;
+- client deactivation revoked the remaining session and disabled portal access;
+- the admin-center project deletion confirmation works after removing the nested
+  tooltip/popconfirm trigger;
+- a password-reset message was delivered to a disposable SES-verified identity; and
+- the disposable client, portal identity, and project were removed after acceptance.
+
+Migration `2026072400000_email_delivery_tracking` was applied twice to an isolated
+restore of the newest encrypted production backup. The rehearsal verified the delivery
+event table, the added email-log columns, the update function and trigger, and an
+insert-driven `delivered` status transition. The same schema and trigger behavior were
+verified after production deployment.
+
+The post-acceptance encrypted backup is
+`postgres/daily/worklenz-20260724T061223Z.dump.age`. Backup-age and public/origin
+health checks passed, and production was confirmed on the exact immutable SHA above.
+
+External invitation and password-reset delivery remains blocked by the AWS SES sandbox.
+Production-access request `178455732800515` was denied and must be approved before a
+real client invitation is sent. The last UI-only file-upload check also remains pending
+because the controlled Chrome profile must allow extension access to `file://` URLs;
+the restore-clone authorization and signed-download tests already pass.
+
+The designated client pilot remains gated until the internal observation week that
+started July 21 completes without an unresolved severity-1 issue and the client's
+identities are explicitly enrolled in Cloudflare Access.

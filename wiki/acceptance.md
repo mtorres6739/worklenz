@@ -135,3 +135,44 @@ Still gated before the designated external client:
   walkthrough in a separate browser profile;
 - one internal business week without an unresolved severity-1 issue; and
 - explicit Cloudflare Access enrollment for the designated client's identities.
+
+### Wave 4 production acceptance: 2026-07-24
+
+- Deployed immutable SHA:
+  `2d37e0908f41a3762d4ce241a352e427aaab96ce`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/30071203421>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/30071203417>.
+- Migration `2026072400000_email_delivery_tracking` passed twice against an isolated
+  restore of the newest encrypted production backup, including a transactional delivery
+  event that advanced its email log to `delivered`. Production schema and trigger
+  behavior passed after deployment.
+- The separate staff/client browser walkthrough passed permission persistence,
+  client-visible comment round trips, task-drawer refresh, hidden/visible files,
+  read-only/comment access, project-grant revocation, portal-session revocation, and
+  client deactivation.
+- The admin-center project deletion trigger was repaired and verified in production.
+- A password-reset message was delivered to a disposable SES-verified identity.
+- The disposable client, portal identity, and project were removed. The clean
+  post-acceptance encrypted backup is
+  `postgres/daily/worklenz-20260724T061223Z.dump.age`; backup-age and health checks
+  passed.
+
+Remaining gates before the designated external client:
+
+- AWS SES production access. Request `178455732800515` was denied, so external
+  invitation and reset delivery is not yet approved.
+- One actual UI attachment upload after enabling Chrome extension access to local
+  `file://` URLs. Restore-clone file authorization, private object access, and signed
+  download tests already pass.
+- Completion of the internal observation week that started July 21 without an
+  unresolved severity-1 issue, plus explicit Cloudflare Access enrollment for the
+  designated client's identities.
+
+Nonblocking internal-pilot UX follow-ups:
+
+- the client table can briefly retain a stale Active badge after deactivation even
+  though the database, session, and authorization state are already inactive;
+- the admin-center branding request still returns 404; and
+- the project page can still show a capability alert even though the underlying
+  self-hosted feature is available.
