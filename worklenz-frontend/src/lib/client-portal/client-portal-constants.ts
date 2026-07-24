@@ -3,7 +3,7 @@ import React, { ReactNode, lazy } from 'react';
 const ClientPortalClients = lazy(
   () => import('../../pages/client-portal/clients/ClientPortalClients')
 );
-import { GroupOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, FileTextOutlined, GroupOutlined } from '@ant-design/icons';
 
 export type ClientPortalMenuItems = {
   key: string;
@@ -21,5 +21,19 @@ export const clientPortalItems: ClientPortalMenuItems[] = [
     endpoint: 'clients',
     icon: React.createElement(GroupOutlined),
     element: React.createElement(ClientPortalClients),
+  },
+  {
+    key: 'services',
+    name: 'services',
+    endpoint: 'services',
+    icon: React.createElement(AppstoreOutlined),
+    element: false,
+  },
+  {
+    key: 'requests',
+    name: 'requests',
+    endpoint: 'requests',
+    icon: React.createElement(FileTextOutlined),
+    element: false,
   },
 ];

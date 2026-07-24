@@ -20,11 +20,18 @@ import {
   setPortalCookie,
 } from "../services/client-portal-session.service";
 import { IO } from "../shared/io";
+import { getSelfHostedCapabilities } from "../shared/self-hosted-capabilities";
 
 const genericLoginError = "Invalid email or password";
-const dummyPortalPasswordHash = bcrypt.hashSync("invalid-client-portal-password", 12);
+const dummyPortalPasswordHash = bcrypt.hashSync(
+  "invalid-client-portal-password",
+  12,
+);
 
-async function sessionBody(actor: NonNullable<ClientPortalRequest["portalActor"]>) {
+async function sessionBody(
+  actor: NonNullable<ClientPortalRequest["portalActor"]>,
+) {
+  const selfHosted = getSelfHostedCapabilities().capabilities;
   const organizations = await db.query(
     `SELECT pcm.id AS membership_id,
             pcm.team_id,
@@ -62,14 +69,23 @@ async function sessionBody(actor: NonNullable<ClientPortalRequest["portalActor"]
     },
     organizations: organizations.rows,
     branding: await getPublicBranding(actor.teamId),
+    capabilities: {
+      services: selfHosted.clientPortalServices,
+      requests: selfHosted.clientPortalRequests,
+    },
   };
 }
 
 export default class ClientPortalAuthController {
-  public static async invitation(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async invitation(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const token = String(req.params.token || "");
     if (!/^[0-9a-f]{64}$/i.test(token)) {
-      return res.status(404).send(new ServerResponse(false, null, "Invitation not found"));
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Invitation not found"));
     }
     const result = await db.query(
       `SELECT pi.team_id, pi.email, pi.name, pi.role, pi.access_level, pi.expires_at,
@@ -89,24 +105,43 @@ export default class ClientPortalAuthController {
       [hashPortalToken(token)],
     );
     if (!result.rowCount) {
-      return res.status(404).send(new ServerResponse(false, null, "Invitation is invalid or expired"));
+      return res
+        .status(404)
+        .send(
+          new ServerResponse(false, null, "Invitation is invalid or expired"),
+        );
     }
     const { team_id: teamId, ...invitation } = result.rows[0];
-    return res.send(new ServerResponse(true, {
-      ...invitation,
-      branding: await getPublicBranding(teamId),
-    }));
+    return res.send(
+      new ServerResponse(true, {
+        ...invitation,
+        branding: await getPublicBranding(teamId),
+      }),
+    );
   }
 
-  public static async acceptInvitation(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async acceptInvitation(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const rawToken = String(req.params.token || "");
     const name = String(req.body?.name || "").trim();
     const password = req.body?.password;
     if (!/^[0-9a-f]{64}$/i.test(rawToken) || !name || name.length > 120) {
-      return res.status(400).send(new ServerResponse(false, null, "Invalid invitation details"));
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "Invalid invitation details"));
     }
     if (!isStrongPortalPassword(password)) {
-      return res.status(400).send(new ServerResponse(false, null, "Use at least 12 characters with upper, lower, number, and symbol"));
+      return res
+        .status(400)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Use at least 12 characters with upper, lower, number, and symbol",
+          ),
+        );
     }
 
     const client = await db.pool.connect();
@@ -125,13 +160,25 @@ export default class ClientPortalAuthController {
         [hashPortalToken(rawToken)],
       );
       const invitation = invitationResult.rows[0];
-      if (!invitation || invitation.status !== "pending" || new Date(invitation.expires_at).getTime() <= Date.now()) {
+      if (
+        !invitation ||
+        invitation.status !== "pending" ||
+        new Date(invitation.expires_at).getTime() <= Date.now()
+      ) {
         await client.query("ROLLBACK");
-        return res.status(404).send(new ServerResponse(false, null, "Invitation is invalid or expired"));
+        return res
+          .status(404)
+          .send(
+            new ServerResponse(false, null, "Invitation is invalid or expired"),
+          );
       }
       if (invitation.client_status === "inactive") {
         await client.query("ROLLBACK");
-        return res.status(403).send(new ServerResponse(false, null, "Client portal access is disabled"));
+        return res
+          .status(403)
+          .send(
+            new ServerResponse(false, null, "Client portal access is disabled"),
+          );
       }
 
       teamId = invitation.team_id;
@@ -144,7 +191,15 @@ export default class ClientPortalAuthController {
       if (existing.rowCount) {
         if (!(await bcrypt.compare(password, existing.rows[0].password_hash))) {
           await client.query("ROLLBACK");
-          return res.status(401).send(new ServerResponse(false, null, "This email already has a portal account. Enter its existing password."));
+          return res
+            .status(401)
+            .send(
+              new ServerResponse(
+                false,
+                null,
+                "This email already has a portal account. Enter its existing password.",
+              ),
+            );
         }
         clientUserId = existing.rows[0].id;
         await client.query(
@@ -156,7 +211,11 @@ export default class ClientPortalAuthController {
         const created = await client.query(
           `INSERT INTO portal_client_users (email, name, password_hash)
            VALUES ($1, $2, $3) RETURNING id`,
-          [normalizePortalEmail(invitation.email), name, await bcrypt.hash(password, 12)],
+          [
+            normalizePortalEmail(invitation.email),
+            name,
+            await bcrypt.hash(password, 12),
+          ],
         );
         clientUserId = created.rows[0].id;
       }
@@ -172,7 +231,14 @@ export default class ClientPortalAuthController {
                        accepted_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP
          RETURNING id`,
-        [clientUserId, teamId, clientId, invitation.role, invitation.access_level, invitation.invited_by],
+        [
+          clientUserId,
+          teamId,
+          clientId,
+          invitation.role,
+          invitation.access_level,
+          invitation.invited_by,
+        ],
       );
       membershipId = membership.rows[0].id;
 
@@ -217,14 +283,31 @@ export default class ClientPortalAuthController {
       csrfToken: session.csrfToken,
       expiresAt: session.expiresAt,
     } as NonNullable<ClientPortalRequest["portalActor"]>;
-    await auditPortalEvent({ action: "invitation.accepted", actor: sessionActor, req });
-    return res.status(201).send(new ServerResponse(true, await sessionBody(sessionActor), "Invitation accepted"));
+    await auditPortalEvent({
+      action: "invitation.accepted",
+      actor: sessionActor,
+      req,
+    });
+    return res
+      .status(201)
+      .send(
+        new ServerResponse(
+          true,
+          await sessionBody(sessionActor),
+          "Invitation accepted",
+        ),
+      );
   }
 
-  public static async login(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async login(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const email = normalizePortalEmail(req.body?.email);
     const password = String(req.body?.password || "");
-    const requestedMembershipId = req.body?.membership_id ? String(req.body.membership_id) : null;
+    const requestedMembershipId = req.body?.membership_id
+      ? String(req.body.membership_id)
+      : null;
     const userResult = await db.query(
       `SELECT id, email, name, password_hash FROM portal_client_users
         WHERE lower(email::TEXT) = lower($1) AND status = 'active' LIMIT 1`,
@@ -236,8 +319,15 @@ export default class ClientPortalAuthController {
       user?.password_hash || dummyPortalPasswordHash,
     );
     if (!user || !passwordMatches) {
-      await auditPortalEvent({ action: "auth.login", success: false, details: { email }, req });
-      return res.status(401).send(new ServerResponse(false, null, genericLoginError));
+      await auditPortalEvent({
+        action: "auth.login",
+        success: false,
+        details: { email },
+        req,
+      });
+      return res
+        .status(401)
+        .send(new ServerResponse(false, null, genericLoginError));
     }
     const membershipResult = await db.query(
       `SELECT pcm.id, pcm.team_id, pcm.client_id, pcm.role, pcm.access_level
@@ -252,14 +342,24 @@ export default class ClientPortalAuthController {
     );
     const membership = membershipResult.rows[0];
     if (!membership) {
-      await auditPortalEvent({ action: "auth.login", success: false, details: { email, reason: "no_active_membership" }, req });
-      return res.status(401).send(new ServerResponse(false, null, genericLoginError));
+      await auditPortalEvent({
+        action: "auth.login",
+        success: false,
+        details: { email, reason: "no_active_membership" },
+        req,
+      });
+      return res
+        .status(401)
+        .send(new ServerResponse(false, null, genericLoginError));
     }
 
     await revokePortalSession(portalTokenFromRequest(req));
     const session = await createPortalSession(user.id, membership.id, req);
     setPortalCookie(res, session.rawToken);
-    await db.query(`UPDATE portal_client_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`, [user.id]);
+    await db.query(
+      `UPDATE portal_client_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`,
+      [user.id],
+    );
     const actor = {
       sessionId: "new",
       clientUserId: user.id,
@@ -277,40 +377,78 @@ export default class ClientPortalAuthController {
     return res.send(new ServerResponse(true, await sessionBody(actor)));
   }
 
-  public static async session(req: ClientPortalRequest, res: Response): Promise<Response> {
-    if (!req.portalActor) return res.status(401).send(new ServerResponse(false, null, "Unauthorized"));
-    return res.send(new ServerResponse(true, await sessionBody(req.portalActor)));
+  public static async session(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    if (!req.portalActor)
+      return res
+        .status(401)
+        .send(new ServerResponse(false, null, "Unauthorized"));
+    return res.send(
+      new ServerResponse(true, await sessionBody(req.portalActor)),
+    );
   }
 
-  public static async logout(req: ClientPortalRequest, res: Response): Promise<Response> {
-    if (req.portalActor) await auditPortalEvent({ action: "auth.logout", actor: req.portalActor, req });
+  public static async logout(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    if (req.portalActor)
+      await auditPortalEvent({
+        action: "auth.logout",
+        actor: req.portalActor,
+        req,
+      });
     await revokePortalSession(portalTokenFromRequest(req));
     if (req.portalActor) {
-      IO.getInstance()?.in(`portal:membership:${req.portalActor.membershipId}`).disconnectSockets(true);
+      IO.getInstance()
+        ?.in(`portal:membership:${req.portalActor.membershipId}`)
+        .disconnectSockets(true);
     }
     clearPortalCookie(res);
     return res.send(new ServerResponse(true, null, "Signed out"));
   }
 
-  public static async switchMembership(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async switchMembership(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const actor = req.portalActor;
     const membershipId = String(req.body?.membership_id || "");
     if (!actor || !/^[0-9a-f-]{36}$/i.test(membershipId)) {
-      return res.status(400).send(new ServerResponse(false, null, "Invalid membership"));
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "Invalid membership"));
     }
     const result = await db.query(
       `SELECT id FROM portal_client_memberships
         WHERE id = $1::UUID AND client_user_id = $2::UUID AND is_active = TRUE`,
       [membershipId, actor.clientUserId],
     );
-    if (!result.rowCount) return res.status(404).send(new ServerResponse(false, null, "Membership not found"));
+    if (!result.rowCount)
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Membership not found"));
     await revokePortalSession(portalTokenFromRequest(req));
-    const session = await createPortalSession(actor.clientUserId, membershipId, req);
+    const session = await createPortalSession(
+      actor.clientUserId,
+      membershipId,
+      req,
+    );
     setPortalCookie(res, session.rawToken);
-    return res.send(new ServerResponse(true, { csrf_token: session.csrfToken, expires_at: session.expiresAt }));
+    return res.send(
+      new ServerResponse(true, {
+        csrf_token: session.csrfToken,
+        expires_at: session.expiresAt,
+      }),
+    );
   }
 
-  public static async requestPasswordReset(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async requestPasswordReset(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const email = normalizePortalEmail(req.body?.email);
     const result = await db.query(
       `SELECT pcu.id, pcu.name, pcu.email, pcm.team_id
@@ -323,26 +461,54 @@ export default class ClientPortalAuthController {
     const user = result.rows[0];
     if (user) {
       const rawToken = randomPortalToken();
-      await db.query(`UPDATE portal_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE client_user_id = $1::UUID AND used_at IS NULL`, [user.id]);
+      await db.query(
+        `UPDATE portal_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE client_user_id = $1::UUID AND used_at IS NULL`,
+        [user.id],
+      );
       await db.query(
         `INSERT INTO portal_password_reset_tokens (client_user_id, token_hash, expires_at)
          VALUES ($1::UUID, $2, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
         [user.id, hashPortalToken(rawToken)],
       );
       try {
-        await sendPortalPasswordReset({ teamId: user.team_id, email: user.email, name: user.name, rawToken });
+        await sendPortalPasswordReset({
+          teamId: user.team_id,
+          email: user.email,
+          name: user.name,
+          rawToken,
+        });
       } catch {
         // Keep the response indistinguishable to prevent account enumeration.
       }
     }
-    return res.send(new ServerResponse(true, null, "If that account exists, a reset link has been sent"));
+    return res.send(
+      new ServerResponse(
+        true,
+        null,
+        "If that account exists, a reset link has been sent",
+      ),
+    );
   }
 
-  public static async resetPassword(req: ClientPortalRequest, res: Response): Promise<Response> {
+  public static async resetPassword(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
     const rawToken = String(req.body?.token || "");
     const password = req.body?.password;
-    if (!/^[0-9a-f]{64}$/i.test(rawToken) || !isStrongPortalPassword(password)) {
-      return res.status(400).send(new ServerResponse(false, null, "Invalid reset request or weak password"));
+    if (
+      !/^[0-9a-f]{64}$/i.test(rawToken) ||
+      !isStrongPortalPassword(password)
+    ) {
+      return res
+        .status(400)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Invalid reset request or weak password",
+          ),
+        );
     }
     const client = await db.pool.connect();
     let clientUserId = "";
@@ -356,12 +522,25 @@ export default class ClientPortalAuthController {
       );
       if (!reset.rowCount) {
         await client.query("ROLLBACK");
-        return res.status(404).send(new ServerResponse(false, null, "Reset link is invalid or expired"));
+        return res
+          .status(404)
+          .send(
+            new ServerResponse(false, null, "Reset link is invalid or expired"),
+          );
       }
       clientUserId = reset.rows[0].client_user_id;
-      await client.query(`UPDATE portal_client_users SET password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`, [clientUserId, await bcrypt.hash(password, 12)]);
-      await client.query(`UPDATE portal_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`, [reset.rows[0].id]);
-      await client.query(`UPDATE portal_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE client_user_id = $1::UUID AND revoked_at IS NULL`, [clientUserId]);
+      await client.query(
+        `UPDATE portal_client_users SET password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`,
+        [clientUserId, await bcrypt.hash(password, 12)],
+      );
+      await client.query(
+        `UPDATE portal_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1::UUID`,
+        [reset.rows[0].id],
+      );
+      await client.query(
+        `UPDATE portal_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE client_user_id = $1::UUID AND revoked_at IS NULL`,
+        [clientUserId],
+      );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

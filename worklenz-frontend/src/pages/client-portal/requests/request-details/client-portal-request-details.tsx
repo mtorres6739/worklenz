@@ -31,7 +31,6 @@ import {
   CommentOutlined,
   SendOutlined,
   TeamOutlined,
-  DollarOutlined,
 } from '@ant-design/icons';
 import { colors } from '../../../../styles/colors';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -40,11 +39,9 @@ import {
   useUpdateOrganizationRequestStatusMutation,
   useGetRequestCommentsQuery,
   useAddRequestCommentMutation,
-  useGetInvoicesByRequestQuery,
 } from '../../../../api/client-portal/client-portal-api';
 import { message } from 'antd';
 import { durationDateFormat } from '../../../../utils/durationDateFormat';
-import { getCurrencySymbol } from '../../../../shared/currencies';
 
 const { TextArea } = Input;
 
@@ -89,10 +86,6 @@ const ClientPortalRequestDetails = () => {
   const [displayedNewCommentsCount, setDisplayedNewCommentsCount] = React.useState<number>(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch invoices for this request
-  const { data: invoicesData } = useGetInvoicesByRequestQuery(id || '', { skip: !id });
-  const invoices = invoicesData?.body?.invoices || [];
-
   // Auto-scroll to bottom when comments change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -117,15 +110,6 @@ const ClientPortalRequestDetails = () => {
       // Refetch to update the backend timestamp
       refetchComments();
     }
-  };
-
-  // Check if request can be invoiced (not pending or rejected)
-  const canCreateInvoice =
-    selectedRequest?.status && !['pending', 'rejected'].includes(selectedRequest.status);
-
-  // Navigate to invoice builder with request ID
-  const handleCreateInvoice = () => {
-    navigate(`/worklenz/client-portal/invoices/create?requestId=${id}`);
   };
 
   // Handle status change
@@ -689,112 +673,6 @@ const ClientPortalRequestDetails = () => {
         </Flex>
       ),
     },
-    {
-      key: 'invoices',
-      label: (
-        <Flex align="center" gap={6}>
-          <DollarOutlined />
-          {t1('invoicesTab') || 'Invoices'}
-          {invoices.length > 0 && (
-            <Badge
-              count={invoices.length}
-              style={{ backgroundColor: token.colorPrimary, marginLeft: 4 }}
-            />
-          )}
-        </Flex>
-      ),
-      children: (
-        <Flex
-          vertical
-          gap={16}
-          style={{
-            height: 'calc(100vh - 420px)',
-            overflowY: 'auto',
-            paddingRight: 12,
-            paddingBottom: 16,
-          }}
-        >
-          {invoices.length === 0 ? (
-            <Empty
-              description={t1('noInvoices') || 'No invoices for this request yet'}
-              style={{ marginTop: 60 }}
-            />
-          ) : (
-            <>
-              <Typography.Text type="secondary" style={{ fontSize: 13, marginBottom: 8 }}>
-                {t1('invoicesDescription') ||
-                  `${invoices.length} invoice${invoices.length === 1 ? '' : 's'} linked to this request`}
-              </Typography.Text>
-              {invoices.map((invoice: any) => {
-                const getStatusColor = (status: string) => {
-                  switch (status) {
-                    case 'paid':
-                      return 'success';
-                    case 'sent':
-                      return 'processing';
-                    case 'draft':
-                      return 'default';
-                    case 'overdue':
-                      return 'error';
-                    case 'cancelled':
-                      return 'default';
-                    default:
-                      return 'default';
-                  }
-                };
-
-                return (
-                  <Card
-                    key={invoice.id}
-                    size="small"
-                    hoverable
-                    onClick={() => navigate(`/worklenz/client-portal/invoices/${invoice.id}`)}
-                    style={{
-                      cursor: 'pointer',
-                      borderRadius: 8,
-                      border: `1px solid ${token.colorBorderSecondary}`,
-                    }}
-                  >
-                    <Flex justify="space-between" align="center">
-                      <Flex vertical gap={4}>
-                        <Flex align="center" gap={8}>
-                          <Typography.Text strong>{invoice.invoiceNo}</Typography.Text>
-                          <Tag
-                            color={getStatusColor(invoice.status)}
-                            style={{ textTransform: 'capitalize', fontSize: 11 }}
-                          >
-                            {invoice.status}
-                          </Tag>
-                        </Flex>
-                        <Flex align="center" gap={12}>
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            {getCurrencySymbol(invoice.currency)}
-                            {invoice.amount.toFixed(2)}
-                          </Typography.Text>
-                          {invoice.dueDate && (
-                            <>
-                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                •
-                              </Typography.Text>
-                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                Due: {durationDateFormat(new Date(invoice.dueDate))}
-                              </Typography.Text>
-                            </>
-                          )}
-                        </Flex>
-                      </Flex>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {durationDateFormat(new Date(invoice.createdAt))}
-                      </Typography.Text>
-                    </Flex>
-                  </Card>
-                );
-              })}
-            </>
-          )}
-        </Flex>
-      ),
-    },
   ];
 
   if (isLoading) {
@@ -853,11 +731,6 @@ const ClientPortalRequestDetails = () => {
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             }}
           />
-          {canCreateInvoice && (
-            <Button type="primary" icon={<FileTextOutlined />} onClick={handleCreateInvoice}>
-              {t1('createInvoiceButton') || 'Create Invoice'}
-            </Button>
-          )}
         </Flex>
       </Flex>
       <Card

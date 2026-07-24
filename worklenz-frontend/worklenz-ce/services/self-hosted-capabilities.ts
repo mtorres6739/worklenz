@@ -37,6 +37,8 @@ const capabilityKeys: SelfHostedCapabilityKey[] = [
   ...enabledCoreCapabilities,
   'projectFinance',
   'clientPortal',
+  'clientPortalServices',
+  'clientPortalRequests',
   'slack',
   'oidc',
   'microsoftTeams',

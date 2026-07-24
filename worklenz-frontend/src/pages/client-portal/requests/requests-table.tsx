@@ -19,7 +19,11 @@ const RequestsTable = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Fetch requests from API
-  const { data: requestsData, isLoading, error } = useGetOrganizationRequestsQuery({
+  const {
+    data: requestsData,
+    isLoading,
+    error,
+  } = useGetOrganizationRequestsQuery({
     page: currentPage,
     limit: pageSize,
   });
@@ -96,9 +100,8 @@ const RequestsTable = () => {
     );
   }
 
-  // Extract requests from API response - backend returns IServerResponse with {total, data} structure
-  const requestsResponse = requestsData?.body || { total: 0, data: [] };
-  const requests = (requestsResponse as any).data || [];
+  const requestsResponse = requestsData?.body || { total: 0, requests: [] };
+  const requests = (requestsResponse as any).requests || [];
 
   // Handle empty state
   if (!requests || requests.length === 0) {

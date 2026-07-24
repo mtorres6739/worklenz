@@ -32,6 +32,10 @@ export interface PortalSession {
     logo_url?: string | null;
     favicon_url?: string | null;
   };
+  capabilities: {
+    services: boolean;
+    requests: boolean;
+  };
 }
 
 interface ServerResponse<T> {
@@ -92,6 +96,49 @@ export interface PortalFile {
   created_at: string;
 }
 
+export interface PortalService {
+  id: string;
+  name: string;
+  description?: string | null;
+  service_key: string;
+  service_data: {
+    description?: string;
+    request_form?: Array<{
+      question: string;
+      type: 'text' | 'multipleChoice' | 'attachment';
+      answer?: string[];
+      required?: boolean;
+    }>;
+  };
+  price?: number | null;
+  currency: string;
+  category?: string | null;
+  updated_at: string;
+}
+
+export interface PortalRequest {
+  id: string;
+  req_no: string;
+  service_id: string;
+  service_name: string;
+  service_description?: string | null;
+  status: string;
+  request_data: Record<string, any>;
+  notes?: string | null;
+  assigned_to_name?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortalRequestComment {
+  id: string;
+  sender_type: 'client' | 'staff';
+  sender_name: string;
+  comment: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const baseQuery = fetchBaseQuery({
   baseUrl: `${config.apiUrl}/api/client-portal`,
   credentials: 'include',
@@ -110,7 +157,17 @@ export const portalClientApi = createApi({
     if (result.error?.status === 401) sessionStorage.removeItem(CSRF_KEY);
     return result;
   },
-  tagTypes: ['PortalSession', 'PortalDashboard', 'PortalProjects', 'PortalTasks', 'PortalComments', 'PortalFiles'],
+  tagTypes: [
+    'PortalSession',
+    'PortalDashboard',
+    'PortalProjects',
+    'PortalTasks',
+    'PortalComments',
+    'PortalFiles',
+    'PortalServices',
+    'PortalRequests',
+    'PortalRequestComments',
+  ],
   endpoints: builder => ({
     getSession: builder.query<PortalSession, void>({
       query: () => '/auth/session',
@@ -139,7 +196,10 @@ export const portalClientApi = createApi({
       query: token => `/invitation/${encodeURIComponent(token)}`,
       transformResponse: (response: ServerResponse<any>) => response.body,
     }),
-    acceptInvitation: builder.mutation<PortalSession, { token: string; name: string; password: string }>({
+    acceptInvitation: builder.mutation<
+      PortalSession,
+      { token: string; name: string; password: string }
+    >({
       query: ({ token, ...body }) => ({
         url: `/invitation/${encodeURIComponent(token)}/accept`,
         method: 'POST',
@@ -164,7 +224,8 @@ export const portalClientApi = createApi({
     }),
     getProjects: builder.query<{ projects: PortalProject[]; total: number }, void>({
       query: () => '/projects',
-      transformResponse: (response: ServerResponse<{ projects: PortalProject[]; total: number }>) => response.body,
+      transformResponse: (response: ServerResponse<{ projects: PortalProject[]; total: number }>) =>
+        response.body,
       providesTags: ['PortalProjects'],
     }),
     getProject: builder.query<PortalProject, string>({
@@ -174,15 +235,23 @@ export const portalClientApi = createApi({
     }),
     getTasks: builder.query<{ tasks: PortalTask[]; total: number }, string>({
       query: projectId => `/projects/${projectId}/tasks`,
-      transformResponse: (response: ServerResponse<{ tasks: PortalTask[]; total: number }>) => response.body,
+      transformResponse: (response: ServerResponse<{ tasks: PortalTask[]; total: number }>) =>
+        response.body,
       providesTags: (_result, _error, id) => [{ type: 'PortalTasks', id }],
     }),
-    getComments: builder.query<{ comments: PortalComment[]; total: number }, { projectId: string; taskId: string }>({
+    getComments: builder.query<
+      { comments: PortalComment[]; total: number },
+      { projectId: string; taskId: string }
+    >({
       query: ({ projectId, taskId }) => `/projects/${projectId}/tasks/${taskId}/comments`,
-      transformResponse: (response: ServerResponse<{ comments: PortalComment[]; total: number }>) => response.body,
+      transformResponse: (response: ServerResponse<{ comments: PortalComment[]; total: number }>) =>
+        response.body,
       providesTags: (_result, _error, { taskId }) => [{ type: 'PortalComments', id: taskId }],
     }),
-    addComment: builder.mutation<PortalComment, { projectId: string; taskId: string; comment: string }>({
+    addComment: builder.mutation<
+      PortalComment,
+      { projectId: string; taskId: string; comment: string }
+    >({
       query: ({ projectId, taskId, comment }) => ({
         url: `/projects/${projectId}/tasks/${taskId}/comments`,
         method: 'POST',
@@ -193,15 +262,78 @@ export const portalClientApi = createApi({
     }),
     getFiles: builder.query<{ files: PortalFile[]; total: number }, string>({
       query: projectId => `/projects/${projectId}/files`,
-      transformResponse: (response: ServerResponse<{ files: PortalFile[]; total: number }>) => response.body,
+      transformResponse: (response: ServerResponse<{ files: PortalFile[]; total: number }>) =>
+        response.body,
       providesTags: (_result, _error, id) => [{ type: 'PortalFiles', id }],
     }),
-    downloadFile: builder.mutation<{ url: string; expires_in: number }, { projectId: string; fileId: string; source: 'project' | 'task' }>({
+    downloadFile: builder.mutation<
+      { url: string; expires_in: number },
+      { projectId: string; fileId: string; source: 'project' | 'task' }
+    >({
       query: ({ projectId, fileId, source }) => ({
         url: `/projects/${projectId}/files/${fileId}/download?source=${source}`,
         method: 'GET',
       }),
-      transformResponse: (response: ServerResponse<{ url: string; expires_in: number }>) => response.body,
+      transformResponse: (response: ServerResponse<{ url: string; expires_in: number }>) =>
+        response.body,
+    }),
+    getServices: builder.query<{ services: PortalService[]; total: number }, void>({
+      query: () => '/services',
+      transformResponse: (response: ServerResponse<{ services: PortalService[]; total: number }>) =>
+        response.body,
+      providesTags: ['PortalServices'],
+    }),
+    getService: builder.query<PortalService, string>({
+      query: id => `/services/${id}`,
+      transformResponse: (response: ServerResponse<PortalService>) => response.body,
+      providesTags: (_result, _error, id) => [{ type: 'PortalServices', id }],
+    }),
+    getRequests: builder.query<
+      { requests: PortalRequest[]; total: number; page: number; limit: number },
+      void
+    >({
+      query: () => '/requests',
+      transformResponse: (
+        response: ServerResponse<{
+          requests: PortalRequest[];
+          total: number;
+          page: number;
+          limit: number;
+        }>
+      ) => response.body,
+      providesTags: ['PortalRequests'],
+    }),
+    createRequest: builder.mutation<
+      PortalRequest,
+      { service_id: string; request_data: Record<string, unknown>; notes?: string }
+    >({
+      query: body => ({ url: '/requests', method: 'POST', body }),
+      transformResponse: (response: ServerResponse<PortalRequest>) => response.body,
+      invalidatesTags: ['PortalRequests', 'PortalDashboard'],
+    }),
+    getRequest: builder.query<PortalRequest, string>({
+      query: id => `/requests/${id}`,
+      transformResponse: (response: ServerResponse<PortalRequest>) => response.body,
+      providesTags: (_result, _error, id) => [{ type: 'PortalRequests', id }],
+    }),
+    getRequestComments: builder.query<{ comments: PortalRequestComment[]; total: number }, string>({
+      query: id => `/requests/${id}/comments`,
+      transformResponse: (
+        response: ServerResponse<{ comments: PortalRequestComment[]; total: number }>
+      ) => response.body,
+      providesTags: (_result, _error, id) => [{ type: 'PortalRequestComments', id }],
+    }),
+    addRequestComment: builder.mutation<PortalRequestComment, { id: string; comment: string }>({
+      query: ({ id, comment }) => ({
+        url: `/requests/${id}/comments`,
+        method: 'POST',
+        body: { comment },
+      }),
+      transformResponse: (response: ServerResponse<PortalRequestComment>) => response.body,
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'PortalRequestComments', id },
+        { type: 'PortalRequests', id },
+      ],
     }),
   }),
 });
@@ -222,4 +354,11 @@ export const {
   useAddCommentMutation,
   useGetFilesQuery,
   useDownloadFileMutation,
+  useGetServicesQuery,
+  useGetServiceQuery,
+  useGetRequestsQuery,
+  useCreateRequestMutation,
+  useGetRequestQuery,
+  useGetRequestCommentsQuery,
+  useAddRequestCommentMutation,
 } = portalClientApi;

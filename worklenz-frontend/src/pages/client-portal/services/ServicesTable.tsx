@@ -32,12 +32,15 @@ const ServicesTable = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // Fetch services from API
-  const { data: servicesData, isLoading, error } = useGetOrganizationServicesQuery({
+  const {
+    data: servicesData,
+    isLoading,
+    error,
+  } = useGetOrganizationServicesQuery({
     page: currentPage,
     limit: pageSize,
   });
 
-  // Debug logging
   const [deleteService] = useDeleteOrganizationServiceMutation();
 
   const navigate = useNavigate();
@@ -123,7 +126,7 @@ const ServicesTable = () => {
                 icon: <ExclamationCircleOutlined />,
                 content:
                   t('confirmDeleteMessage') ||
-                  `Are you sure you want to delete "${record.name}"? This action cannot be undone.`,
+                  `Deactivate "${record.name}"? Existing requests will be preserved.`,
                 okText: t('deleteButton'),
                 okType: 'danger',
                 cancelText: t('cancelButton'),

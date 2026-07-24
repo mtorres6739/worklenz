@@ -13,6 +13,8 @@ describe("self-hosted capability profile", () => {
 
   it("removes commercial quotas while failing unfinished server modules closed", () => {
     delete process.env.FEATURE_CLIENT_PORTAL;
+    delete process.env.FEATURE_CLIENT_PORTAL_SERVICES;
+    delete process.env.FEATURE_CLIENT_PORTAL_REQUESTS;
     delete process.env.FEATURE_SLACK;
     const profile = getSelfHostedCapabilities();
     expect(profile.profile).toBe("self_hosted_full");
@@ -25,6 +27,8 @@ describe("self-hosted capability profile", () => {
     });
     expect(profile.capabilities.schedule).toBe(true);
     expect(profile.capabilities.clientPortal).toBe(false);
+    expect(profile.capabilities.clientPortalServices).toBe(false);
+    expect(profile.capabilities.clientPortalRequests).toBe(false);
     expect(profile.capabilities.slack).toBe(false);
   });
 
@@ -43,6 +47,31 @@ describe("self-hosted capability profile", () => {
   it("exposes the client portal only when the collaboration wave is enabled", () => {
     process.env.FEATURE_CLIENT_PORTAL = "true";
     expect(getSelfHostedCapabilities().capabilities.clientPortal).toBe(true);
+  });
+
+  it("keeps portal services and requests behind their parent capabilities", () => {
+    process.env.FEATURE_CLIENT_PORTAL = "false";
+    process.env.FEATURE_CLIENT_PORTAL_SERVICES = "true";
+    process.env.FEATURE_CLIENT_PORTAL_REQUESTS = "true";
+    expect(getSelfHostedCapabilities().capabilities.clientPortalServices).toBe(
+      false,
+    );
+    expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
+      false,
+    );
+
+    process.env.FEATURE_CLIENT_PORTAL = "true";
+    expect(getSelfHostedCapabilities().capabilities.clientPortalServices).toBe(
+      true,
+    );
+    expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
+      true,
+    );
+
+    process.env.FEATURE_CLIENT_PORTAL_SERVICES = "false";
+    expect(getSelfHostedCapabilities().capabilities.clientPortalRequests).toBe(
+      false,
+    );
   });
 
   it("caps upload configuration at one GiB", () => {

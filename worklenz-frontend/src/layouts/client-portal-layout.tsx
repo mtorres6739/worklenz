@@ -24,6 +24,8 @@ const ClientPortalLayout = () => {
   const auth = useAuthService();
   const { hasCapability, capabilitiesLoaded } = useBusinessFeatures();
   const hasClientPortalAccess = hasCapability('clientPortal');
+  const hasServicesAccess = hasCapability('clientPortalServices');
+  const hasRequestsAccess = hasCapability('clientPortalRequests');
   const { trackMixpanelEvent } = useMixpanelTracking();
   const isAuthenticated = auth.isAuthenticated();
 
@@ -57,6 +59,11 @@ const ClientPortalLayout = () => {
 
   const sidebarWidth = sidebarCollapsed ? 80 : 280;
   const contentPadding = isDesktop ? 32 : isTablet ? 24 : 16;
+  const visiblePortalItems = clientPortalItems.filter(item => {
+    if (item.key === 'services') return hasServicesAccess;
+    if (item.key === 'requests') return hasRequestsAccess;
+    return true;
+  });
 
   return (
     <Layout
@@ -101,7 +108,7 @@ const ClientPortalLayout = () => {
             }}
           >
             <ClientPortalSidebar
-              items={clientPortalItems}
+              items={visiblePortalItems}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />

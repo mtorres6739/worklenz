@@ -84,6 +84,12 @@ jobs:
           psql -Atc "SELECT to_regclass('public.portal_project_access') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.portal_task_comments') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.portal_audit_log') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_services') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_service_clients') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_requests') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_request_status_history') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_request_comments') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.portal_request_attachments') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regclass('public.email_delivery_events') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 5 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name IN ('status','message_id','error_details','delivered_at','updated_at')" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name = 'provider'" | grep -qx t
@@ -115,7 +121,10 @@ jobs:
             portal_user_b_id UUID;
             membership_a_id UUID;
             membership_b_id UUID;
+            portal_service_id UUID;
+            portal_request_id UUID;
             duplicate_project_blocked BOOLEAN := FALSE;
+            cross_client_request_blocked BOOLEAN := FALSE;
           BEGIN
             IF (SELECT deserialize_user(id) FROM users WHERE email = 'ci-owner@example.test') IS NULL THEN
               RAISE EXCEPTION 'Fresh CE owner session could not be deserialized';
@@ -303,6 +312,69 @@ jobs:
             END;
             IF NOT duplicate_project_blocked THEN
               RAISE EXCEPTION 'One project was assignable to multiple clients';
+            END IF;
+
+            INSERT INTO portal_services
+              (team_id, created_by, name, description, service_key, status, service_data)
+            VALUES
+              (team_id, owner_id, 'CI Website Service', 'Private CI service', 'WEB', 'active',
+               '{"fields":[{"key":"summary","label":"Summary","type":"text","required":true}]}'::JSONB)
+            RETURNING id INTO portal_service_id;
+            INSERT INTO portal_service_clients (service_id, team_id, client_id)
+            VALUES (portal_service_id, team_id, client_a_id);
+
+            INSERT INTO portal_requests
+              (request_no, team_id, client_id, service_id, submitted_by_membership_id,
+               request_data)
+            VALUES
+              ('WEB-CI-000001', team_id, client_a_id, portal_service_id, membership_a_id,
+               '{"summary":"Client A private request"}'::JSONB)
+            RETURNING id INTO portal_request_id;
+            INSERT INTO portal_request_status_history
+              (request_id, team_id, client_id, to_status, changed_by_membership_id)
+            VALUES
+              (portal_request_id, team_id, client_a_id, 'pending', membership_a_id);
+
+            IF EXISTS (
+              SELECT 1
+                FROM portal_services ps
+               WHERE ps.id = portal_service_id
+                 AND ps.team_id = ci_fixture.team_id
+                 AND (
+                   ps.is_public
+                   OR EXISTS (
+                     SELECT 1
+                       FROM portal_service_clients psc
+                      WHERE psc.service_id = ps.id
+                        AND psc.team_id = ci_fixture.team_id
+                        AND psc.client_id = ci_fixture.client_b_id
+                   )
+                 )
+            ) THEN
+              RAISE EXCEPTION 'Client B could read Client A private service';
+            END IF;
+            IF EXISTS (
+              SELECT 1
+                FROM portal_requests pr
+               WHERE pr.id = portal_request_id
+                 AND pr.team_id = ci_fixture.team_id
+                 AND pr.client_id = ci_fixture.client_b_id
+            ) THEN
+              RAISE EXCEPTION 'Client B could read Client A request';
+            END IF;
+
+            BEGIN
+              INSERT INTO portal_requests
+                (request_no, team_id, client_id, service_id, submitted_by_membership_id,
+                 request_data)
+              VALUES
+                ('WEB-CI-BAD', team_id, client_b_id, portal_service_id, membership_a_id,
+                 '{"summary":"Cross-client request"}'::JSONB);
+            EXCEPTION WHEN foreign_key_violation THEN
+              cross_client_request_blocked := TRUE;
+            END;
+            IF NOT cross_client_request_blocked THEN
+              RAISE EXCEPTION 'Cross-client request membership was accepted';
             END IF;
 
             PERFORM log_project_activity_i18n(

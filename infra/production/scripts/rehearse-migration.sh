@@ -92,6 +92,117 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400040_portal_services_requests.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.portal_services') IS NOT NULL
+         AND to_regclass('public.portal_service_clients') IS NOT NULL
+         AND to_regclass('public.portal_requests') IS NOT NULL
+         AND to_regclass('public.portal_request_status_history') IS NOT NULL
+         AND to_regclass('public.portal_request_comments') IS NOT NULL
+         AND to_regclass('public.portal_request_attachments') IS NOT NULL
+         AND (
+           SELECT COUNT(*) = 10
+             FROM pg_constraint
+            WHERE conname IN (
+              'portal_service_clients_service_scope_fk',
+              'portal_service_clients_client_scope_fk',
+              'portal_requests_service_scope_fk',
+              'portal_requests_client_scope_fk',
+              'portal_requests_membership_scope_fk',
+              'portal_request_history_request_scope_fk',
+              'portal_request_history_membership_scope_fk',
+              'portal_request_comments_request_scope_fk',
+              'portal_request_comments_membership_scope_fk',
+              'portal_request_attachments_request_scope_fk'
+            )
+         );" | grep -qx t
+  docker exec -i "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -At <<'SQL' \
+    | grep -qx t
+BEGIN;
+DO $$
+DECLARE
+  staff_id UUID;
+  tenant_id UUID;
+  client_a_id UUID;
+  client_b_id UUID;
+  portal_user_a_id UUID;
+  membership_a_id UUID;
+  service_id UUID;
+  request_id UUID;
+  cross_client_blocked BOOLEAN := FALSE;
+BEGIN
+  SELECT id, active_team
+    INTO staff_id, tenant_id
+    FROM users
+   WHERE active_team IS NOT NULL
+   ORDER BY created_at
+   LIMIT 1;
+  IF staff_id IS NULL OR tenant_id IS NULL THEN
+    RAISE EXCEPTION 'Migration rehearsal requires an existing staff tenant';
+  END IF;
+
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Portal rehearsal client A', tenant_id, 'portal-rehearsal-a@example.invalid',
+     'Portal rehearsal A', 'Portal A', 'active', TRUE)
+  RETURNING id INTO client_a_id;
+  INSERT INTO clients
+    (name, team_id, email, company_name, contact_person, status, client_portal_enabled)
+  VALUES
+    ('Portal rehearsal client B', tenant_id, 'portal-rehearsal-b@example.invalid',
+     'Portal rehearsal B', 'Portal B', 'active', TRUE)
+  RETURNING id INTO client_b_id;
+  INSERT INTO portal_client_users (email, name, password_hash)
+  VALUES ('portal-rehearsal-a@example.invalid', 'Portal A', 'rehearsal-only')
+  RETURNING id INTO portal_user_a_id;
+  INSERT INTO portal_client_memberships
+    (client_user_id, team_id, client_id, role, access_level, invited_by, accepted_at)
+  VALUES
+    (portal_user_a_id, tenant_id, client_a_id, 'member', 'comment', staff_id,
+     CURRENT_TIMESTAMP)
+  RETURNING id INTO membership_a_id;
+
+  INSERT INTO portal_services
+    (team_id, created_by, name, service_key, status, service_data)
+  VALUES
+    (tenant_id, staff_id, 'Portal rehearsal service', 'REH', 'active',
+     '{"fields":[{"key":"summary","type":"text","required":true}]}'::JSONB)
+  RETURNING id INTO service_id;
+  INSERT INTO portal_service_clients (service_id, team_id, client_id)
+  VALUES (service_id, tenant_id, client_a_id);
+  INSERT INTO portal_requests
+    (request_no, team_id, client_id, service_id, submitted_by_membership_id,
+     request_data)
+  VALUES
+    ('REH-000001', tenant_id, client_a_id, service_id, membership_a_id,
+     '{"summary":"migration rehearsal"}'::JSONB)
+  RETURNING id INTO request_id;
+  INSERT INTO portal_request_status_history
+    (request_id, team_id, client_id, to_status, changed_by_membership_id)
+  VALUES (request_id, tenant_id, client_a_id, 'pending', membership_a_id);
+
+  BEGIN
+    INSERT INTO portal_requests
+      (request_no, team_id, client_id, service_id, submitted_by_membership_id,
+       request_data)
+    VALUES
+      ('REH-BAD', tenant_id, client_b_id, service_id, membership_a_id,
+       '{"summary":"cross-client"}'::JSONB);
+  EXCEPTION WHEN foreign_key_violation THEN
+    cross_client_blocked := TRUE;
+  END;
+  IF NOT cross_client_blocked THEN
+    RAISE EXCEPTION 'Cross-client request scope was not enforced';
+  END IF;
+END
+$$;
+SELECT COUNT(*) = 1
+  FROM portal_requests
+ WHERE request_no = 'REH-000001';
+ROLLBACK;
+SQL
+  ;;
 2026072400030_password_reset_tokens.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.password_reset_tokens') IS NOT NULL

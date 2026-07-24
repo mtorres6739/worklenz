@@ -41,6 +41,8 @@ export type SelfHostedCapabilityKey =
   | 'organizationBranding'
   | 'projectFinance'
   | 'clientPortal'
+  | 'clientPortalServices'
+  | 'clientPortalRequests'
   | 'slack'
   | 'oidc'
   | 'microsoftTeams'

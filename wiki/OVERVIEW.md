@@ -36,6 +36,7 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - [Project finance](project-finance.md)
 - [Identity, branding, and Slack](identity-branding-slack.md)
 - [Client Portal collaboration](client-portal-collaboration.md)
+- [Client Portal services and requests](client-portal-services-requests.md)
 - [Acceptance and rollout gates](acceptance.md)
 
 ## Current rollout rule

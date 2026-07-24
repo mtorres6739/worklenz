@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { themeWiseColor } from '../../../utils/themeWiseColor';
 import { useAppSelector } from '../../../hooks/useAppSelector';
+import { useGetSessionQuery } from '@/api/client-portal/portal-client.api';
 
 type ClientViewSiderMenuProps = {
   isCollapsed: boolean;
@@ -25,10 +26,15 @@ const ClientViewSiderMenu = ({ isCollapsed, setIsCollapsed }: ClientViewSiderMen
 
   // theme details from theme slice
   const themeMode = useAppSelector(state => state.themeReducer.mode);
+  const { data: session } = useGetSessionQuery();
 
   type MenuItem = Required<MenuProps>['items'][number];
   // import menu items from client view sidebar constants
-  const menuItems = clientViewItems;
+  const menuItems = clientViewItems.filter(item => {
+    if (item.key === 'services') return session?.capabilities.services;
+    if (item.key === 'requests') return session?.capabilities.requests;
+    return true;
+  });
 
   // function for get the active menu item
   const getCurrentActiveKey = () => {

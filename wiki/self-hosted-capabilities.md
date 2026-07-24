@@ -10,6 +10,8 @@ Released flags:
 - `FEATURE_PROJECT_FINANCE=true`
 - `FEATURE_CLIENT_PORTAL=true` for Wave 4 collaboration on the single-workspace,
   Cloudflare-protected internal pilot
+- `FEATURE_CLIENT_PORTAL_SERVICES=false`
+- `FEATURE_CLIENT_PORTAL_REQUESTS=false`
 
 Implemented but fail-closed until provider configuration and independent integration
 gates pass:
@@ -53,9 +55,13 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   and Client A/Client B gate passed; the designated external client remains gated by the
   separate-browser walkthrough and one internal business week. See
   [Client Portal collaboration](client-portal-collaboration.md).
-- Waves 5 through 7 remain fail-closed. Portal services, requests, invoices, payments,
-  chat, advertised provider integrations, and curated plugins must not be enabled until
-  their backend, migrations, provider validation, and isolation tests are complete.
+- Wave 5 Services and Requests now have an additive schema, original staff/client APIs,
+  UI wiring, and independent fail-closed capabilities. Production remains disabled
+  until private request attachments, restore-clone isolation, and end-to-end browser
+  gates are complete. See
+  [Client Portal services and requests](client-portal-services-requests.md).
+- Portal invoices, payments, chat, advertised provider integrations, and curated plugins
+  remain fail-closed and unimplemented.
 
 The compatibility inventory is an upper-bound test, not permission to add new legacy
 gates. Its checked-in counts must be lowered whenever compatibility code is removed.

@@ -1,129 +1,146 @@
 import {
+  Alert,
   Button,
   Card,
+  Flex,
   Form,
   Input,
   Select,
+  Spin,
   Typography,
-  Upload,
   message,
-  Flex,
 } from '@/shared/antd-imports';
-import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { useAppSelector } from '../../../hooks/useAppSelector';
-import { UploadOutlined } from '@ant-design/icons';
-
-const { TextArea } = Input;
-const { Option } = Select;
+import { useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  useCreateRequestMutation,
+  useGetServicesQuery,
+} from '@/api/client-portal/portal-client.api';
 
 const NewRequestForm = () => {
-  const { t } = useTranslation('client-view-requests');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-
-  // Get available services from Redux (replace with API call)
-  const availableServices = useAppSelector(
-    state => state.clientViewReducer.serviceReducer.services || []
+  const { data, isLoading, error } = useGetServicesQuery();
+  const [createRequest, { isLoading: isSubmitting }] = useCreateRequestMutation();
+  const selectedServiceId = Form.useWatch('service_id', form);
+  const services = data?.services || [];
+  const selectedService = useMemo(
+    () => services.find(service => service.id === selectedServiceId),
+    [selectedServiceId, services]
   );
+  const questions = selectedService?.service_data?.request_form || [];
 
-  const onFinish = async (values: any) => {
-    setLoading(true);
-    try {
-      // TODO: Replace with actual API call
-      console.log('Submitting request:', values);
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      message.success(t('requestSubmittedSuccess'));
-      navigate('/client-portal/requests');
-    } catch (error) {
-      message.error(t('requestSubmissionError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onCancel = () => {
-    navigate('/client-portal/requests');
-  };
+  if (isLoading) return <Spin size="large" />;
+  if (error) return <Alert type="error" showIcon message="Services could not be loaded" />;
 
   return (
-    <Flex vertical gap={24} style={{ width: '100%' }}>
-      <Typography.Title level={4} style={{ marginBlock: 0 }}>
-        {t('newRequest')}
-      </Typography.Title>
-
-      <Card style={{ maxWidth: 800 }}>
+    <Flex vertical gap={20} style={{ width: '100%', maxWidth: 860 }}>
+      <div>
+        <Typography.Title level={3} style={{ marginBottom: 4 }}>
+          New request
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Give the SDM team the information needed to start work.
+        </Typography.Text>
+      </div>
+      <Card>
         <Form
           form={form}
           layout="vertical"
-          onFinish={onFinish}
           initialValues={{
+            service_id: searchParams.get('serviceId') || undefined,
             priority: 'medium',
-            attachments: [],
+          }}
+          onFinish={async values => {
+            const questionAnswers = questions.map((question, index) => ({
+              question: question.question,
+              type: question.type,
+              answer: values.answers?.[index] ?? null,
+            }));
+            try {
+              const created = await createRequest({
+                service_id: values.service_id,
+                notes: values.notes,
+                request_data: {
+                  title: values.title,
+                  description: values.description,
+                  priority: values.priority,
+                  questionAnswers,
+                },
+              }).unwrap();
+              message.success('Request submitted');
+              navigate(`/client-portal/requests/${created.id}`, { replace: true });
+            } catch {
+              message.error('The request could not be submitted. Please try again.');
+            }
           }}
         >
           <Form.Item
             name="service_id"
-            label={t('service')}
-            rules={[{ required: true, message: t('serviceRequired') }]}
+            label="Service"
+            rules={[{ required: true, message: 'Select a service' }]}
           >
-            <Select placeholder={t('selectService')}>
-              {availableServices.map((service: any) => (
-                <Option key={service.id} value={service.id}>
-                  {service.name}
-                </Option>
-              ))}
-            </Select>
+            <Select
+              placeholder="Select a service"
+              options={services.map(service => ({ label: service.name, value: service.id }))}
+            />
           </Form.Item>
-
           <Form.Item
             name="title"
-            label={t('requestTitle')}
-            rules={[{ required: true, message: t('titleRequired') }]}
+            label="Request title"
+            rules={[{ required: true, message: 'Enter a request title' }]}
           >
-            <Input placeholder={t('enterRequestTitle')} />
+            <Input maxLength={160} />
           </Form.Item>
-
           <Form.Item
             name="description"
-            label={t('description')}
-            rules={[{ required: true, message: t('descriptionRequired') }]}
+            label="Description"
+            rules={[{ required: true, message: 'Describe what you need' }]}
           >
-            <TextArea rows={4} placeholder={t('enterRequestDescription')} />
+            <Input.TextArea rows={5} maxLength={5000} showCount />
           </Form.Item>
-
-          <Form.Item name="priority" label={t('priority')}>
-            <Select>
-              <Option value="low">{t('low')}</Option>
-              <Option value="medium">{t('medium')}</Option>
-              <Option value="high">{t('high')}</Option>
-              <Option value="urgent">{t('urgent')}</Option>
-            </Select>
+          <Form.Item name="priority" label="Priority">
+            <Select
+              options={['low', 'medium', 'high', 'urgent'].map(value => ({
+                label: value[0].toUpperCase() + value.slice(1),
+                value,
+              }))}
+            />
           </Form.Item>
-
-          <Form.Item name="attachments" label={t('attachments')}>
-            <Upload listType="text" beforeUpload={() => false} maxCount={5}>
-              <Button icon={<UploadOutlined />}>{t('uploadFiles')}</Button>
-            </Upload>
+          {questions.map((question, index) => (
+            <Form.Item
+              key={`${question.question}-${index}`}
+              name={['answers', index]}
+              label={question.question}
+              rules={
+                question.required && question.type !== 'attachment'
+                  ? [{ required: true, message: 'This field is required' }]
+                  : undefined
+              }
+            >
+              {question.type === 'multipleChoice' ? (
+                <Select options={(question.answer || []).map(value => ({ label: value, value }))} />
+              ) : question.type === 'attachment' ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Secure request attachments are not enabled yet. Add a note and your project manager will provide an upload link."
+                />
+              ) : (
+                <Input.TextArea rows={3} maxLength={3000} />
+              )}
+            </Form.Item>
+          ))}
+          <Form.Item name="notes" label="Additional notes">
+            <Input.TextArea rows={3} maxLength={3000} />
           </Form.Item>
-
-          <Form.Item name="notes" label={t('additionalNotes')}>
-            <TextArea rows={3} placeholder={t('enterAdditionalNotes')} />
-          </Form.Item>
-
-          <Form.Item>
-            <Flex gap={12}>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                {t('submitRequest')}
-              </Button>
-              <Button onClick={onCancel}>{t('cancel')}</Button>
-            </Flex>
-          </Form.Item>
+          <Flex gap={12}>
+            <Button type="primary" htmlType="submit" loading={isSubmitting}>
+              Submit request
+            </Button>
+            <Button onClick={() => navigate('/client-portal/requests')}>Cancel</Button>
+          </Flex>
         </Form>
       </Card>
     </Flex>

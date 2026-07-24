@@ -1,61 +1,58 @@
-import { Button, Flex, Typography } from '@/shared/antd-imports';
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { useAppSelector } from '../../../../hooks/useAppSelector';
+import { Alert, Button, Card, Flex, Spin, Tag, Typography } from '@/shared/antd-imports';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import coverImg from '../../../../assets/images/client-view-service-sample-cover.png';
-import { useAppDispatch } from '../../../../hooks/useAppDispatch';
-import { toggleRequestFormModal } from '../../../../features/client-view/services/client-view-services';
-import RequestFormModal from '../../../../features/client-view/services/request-form-modal/request-form-modal';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useGetServiceQuery } from '@/api/client-portal/portal-client.api';
 
 const ClientViewServiceDetails = () => {
-  // localization
-  const { t } = useTranslation('client-view-services');
-
   const navigate = useNavigate();
+  const { id = '' } = useParams();
+  const { data: service, isLoading, error } = useGetServiceQuery(id, { skip: !id });
 
-  const { services } = useAppSelector(state => state.clientViewReducer.serviceReducer);
-
-  const dispatch = useAppDispatch();
-
-  // get service id from url
-  const serviceId = window.location.pathname.split('/').pop();
-
-  // get service details
-  const service = services.find(service => service.id === serviceId);
+  if (isLoading) return <Spin size="large" />;
+  if (error || !service) {
+    return <Alert type="error" showIcon message="Service not found" />;
+  }
 
   return (
-    <Flex gap={24} style={{ width: '100%' }}>
+    <Flex vertical gap={20} style={{ width: '100%', maxWidth: 900 }}>
       <Button
-        icon={<ArrowLeftOutlined style={{ fontSize: 22 }} />}
-        className="borderless-icon-btn"
-        style={{ boxShadow: 'none' }}
+        type="text"
+        icon={<ArrowLeftOutlined />}
         onClick={() => navigate('/client-portal/services')}
-      />
-
-      <Flex vertical align="center" gap={24} style={{ width: '100%' }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <Flex gap={12} align="center">
-            <Typography.Title level={4} style={{ marginBlock: 0 }}>
-              {service?.name}
-            </Typography.Title>
+        style={{ alignSelf: 'flex-start' }}
+      >
+        Back to services
+      </Button>
+      <Card>
+        <Flex vertical gap={18}>
+          <Flex justify="space-between" align="flex-start" gap={16} wrap="wrap">
+            <div>
+              <Tag color="blue">{service.category || 'Service'}</Tag>
+              <Typography.Title level={2} style={{ marginTop: 10, marginBottom: 0 }}>
+                {service.name}
+              </Typography.Title>
+            </div>
+            {service.price !== null && service.price !== undefined && (
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                {service.currency} {Number(service.price).toFixed(2)}
+              </Typography.Title>
+            )}
           </Flex>
-
-          <Button type="primary" onClick={() => dispatch(toggleRequestFormModal())}>
-            {t('requestButton')}
+          <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', fontSize: 16 }}>
+            {service.description || service.service_data?.description || 'No description provided.'}
+          </Typography.Paragraph>
+          <Button
+            type="primary"
+            size="large"
+            onClick={() =>
+              navigate(`/client-portal/requests/new?serviceId=${encodeURIComponent(service.id)}`)
+            }
+            style={{ alignSelf: 'flex-start' }}
+          >
+            Request this service
           </Button>
         </Flex>
-
-        <Flex vertical gap={24} style={{ width: '100%', maxWidth: 720 }}>
-          <img src={coverImg} alt={service?.name} style={{ width: '100%', objectFit: 'cover' }} />
-
-          <div>{service?.service_data?.description}</div>
-        </Flex>
-      </Flex>
-
-      {/* request form modal  */}
-      <RequestFormModal serviceId={service?.id || ''} />
+      </Card>
     </Flex>
   );
 };

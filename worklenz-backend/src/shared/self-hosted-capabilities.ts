@@ -26,6 +26,8 @@ export const SELF_HOSTED_CAPABILITY_KEYS = [
   "organizationBranding",
   "projectFinance",
   "clientPortal",
+  "clientPortalServices",
+  "clientPortalRequests",
   "slack",
   "oidc",
   "microsoftTeams",
@@ -79,6 +81,10 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
   if (configuredProfile !== "self_hosted_full") {
     throw new Error(`Unsupported FEATURE_PROFILE: ${configuredProfile}`);
   }
+  const clientPortalEnabled = process.env.FEATURE_CLIENT_PORTAL === "true";
+  const clientPortalServicesEnabled =
+    clientPortalEnabled &&
+    process.env.FEATURE_CLIENT_PORTAL_SERVICES === "true";
   return {
     profile: "self_hosted_full",
     schemaVersion: 1,
@@ -109,7 +115,11 @@ export function getSelfHostedCapabilities(): SelfHostedCapabilities {
       customFields: true,
       organizationBranding: true,
       projectFinance: process.env.FEATURE_PROJECT_FINANCE === "true",
-      clientPortal: process.env.FEATURE_CLIENT_PORTAL === "true",
+      clientPortal: clientPortalEnabled,
+      clientPortalServices: clientPortalServicesEnabled,
+      clientPortalRequests:
+        clientPortalServicesEnabled &&
+        process.env.FEATURE_CLIENT_PORTAL_REQUESTS === "true",
       slack: process.env.FEATURE_SLACK === "true",
       oidc: process.env.FEATURE_OIDC === "true",
       microsoftTeams: process.env.FEATURE_MICROSOFT_TEAMS === "true",

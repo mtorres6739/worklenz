@@ -1,8 +1,9 @@
 # Client Portal collaboration
 
 Wave 4 implements an original, invite-only client collaboration surface behind
-`FEATURE_CLIENT_PORTAL`. The release is fail-closed by default. Wave 5 services,
-requests, invoices, payments, and chat remain unrouted and are not part of this flag.
+`FEATURE_CLIENT_PORTAL`. Wave 5 Services and Requests use independent capabilities and
+remain disabled in production. Invoices, payments, attachments, and chat are not part
+of the Wave 4 flag.
 
 ## Released contract
 
@@ -149,9 +150,9 @@ The post-acceptance encrypted backup is
 `postgres/daily/worklenz-20260724T061223Z.dump.age`. Backup-age and public/origin
 health checks passed, and production was confirmed on the exact immutable SHA above.
 
-External invitation and password-reset delivery remains blocked by the AWS SES sandbox.
-Production-access request `178455732800515` was denied and must be approved before a
-real client invitation is sent. The last UI-only file-upload check also remains pending
+External invitation and password-reset delivery now uses the production-approved
+Resend sender `notifications.myfusionadmin.com`; AWS SES remains a disabled fallback.
+The last UI-only file-upload check also remains pending
 because the controlled Chrome profile must allow extension access to `file://` URLs;
 the restore-clone authorization and signed-download tests already pass.
 

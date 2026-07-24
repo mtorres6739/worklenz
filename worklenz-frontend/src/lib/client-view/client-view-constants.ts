@@ -1,6 +1,8 @@
 import {
   AppstoreOutlined,
   DashboardOutlined,
+  FileTextOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 import React, { ReactNode } from 'react';
 import ClientViewProjects from '../../pages/client-view/projects/client-view-projects';
@@ -30,5 +32,19 @@ export const clientViewItems: clientViewMenuItems[] = [
     endpoint: 'projects',
     icon: React.createElement(AppstoreOutlined),
     element: React.createElement(ClientViewProjects),
+  },
+  {
+    key: 'services',
+    name: 'services',
+    endpoint: 'services',
+    icon: React.createElement(ShopOutlined),
+    element: false,
+  },
+  {
+    key: 'requests',
+    name: 'requests',
+    endpoint: 'requests',
+    icon: React.createElement(FileTextOutlined),
+    element: false,
   },
 ];
