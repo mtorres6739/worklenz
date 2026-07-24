@@ -92,6 +92,85 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400010_email_provider_tracking.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT EXISTS (
+           SELECT 1
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'email_logs'
+              AND column_name = 'provider'
+         )
+         AND (
+           SELECT COUNT(*) = 2
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'email_delivery_events'
+              AND column_name IN ('provider', 'provider_event_id')
+         )
+         AND EXISTS (
+           SELECT 1
+             FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'email_delivery_events'
+              AND indexname = 'idx_email_delivery_events_provider_event_recipient'
+         );" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "BEGIN;
+     INSERT INTO email_logs (email, subject, html, message_id, provider)
+     VALUES (
+       'provider-rehearsal@example.invalid',
+       'provider migration rehearsal',
+       '<p>provider migration rehearsal</p>',
+       'provider-migration-rehearsal-message',
+       'resend'
+     );
+     INSERT INTO email_delivery_events (
+       message_id,
+       event_type,
+       recipient_email,
+       timestamp,
+       provider,
+       provider_event_id
+     )
+     VALUES (
+       'provider-migration-rehearsal-message',
+       'delivery',
+       'provider-rehearsal@example.invalid',
+       CURRENT_TIMESTAMP,
+       'resend',
+       'provider-migration-rehearsal-event'
+     );
+     INSERT INTO email_delivery_events (
+       message_id,
+       event_type,
+       recipient_email,
+       timestamp,
+       provider,
+       provider_event_id
+     )
+     VALUES (
+       'provider-migration-rehearsal-message',
+       'delivery',
+       'provider-rehearsal@example.invalid',
+       CURRENT_TIMESTAMP,
+       'resend',
+       'provider-migration-rehearsal-event'
+     )
+     ON CONFLICT DO NOTHING;
+     SELECT status = 'delivered'
+            AND delivered_at IS NOT NULL
+            AND (
+              SELECT COUNT(*)
+                FROM email_delivery_events
+               WHERE provider = 'resend'
+                 AND provider_event_id = 'provider-migration-rehearsal-event'
+                 AND recipient_email = 'provider-rehearsal@example.invalid'
+            ) = 1
+       FROM email_logs
+      WHERE message_id = 'provider-migration-rehearsal-message';
+     ROLLBACK;" | grep -qx t
+  ;;
 2026072400000_email_delivery_tracking.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.email_delivery_events') IS NOT NULL

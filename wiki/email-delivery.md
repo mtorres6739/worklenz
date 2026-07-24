@@ -21,7 +21,7 @@ enter `spam_emails`. Both lists are checked before any later send.
 ## Production setup
 
 - Resend team: `Worklenz`
-- Plan: Transactional Pro, 50,000 emails per month
+- Plan: Transactional Free, 3,000 emails per month for the internal pilot
 - Sending domain: `notifications.myfusionadmin.com`
 - Sender: `Worklenz <noreply@notifications.myfusionadmin.com>`
 - Webhook: `https://projects.myfusionadmin.com/webhook/emails/resend`
@@ -31,6 +31,11 @@ enter `spam_emails`. Both lists are checked before any later send.
 
 Store the API key and webhook secret only in the macOS Keychain services documented
 in `infra/production/KEYCHAIN.md` and `/srv/worklenz/.env` with mode `0600`.
+
+The free allowance is sufficient for the internal pilot and does not require a second
+Resend account. Upgrade the dedicated `Worklenz` team before its monthly volume reaches
+the free allowance; do not move this application's credentials into another team's
+domain.
 
 Create the exact DNS records returned by Resend in Cloudflare. Email DNS records must
 remain DNS-only; never proxy them. Wait for Resend to report the domain verified
