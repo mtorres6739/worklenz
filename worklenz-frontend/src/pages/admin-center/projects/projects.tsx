@@ -9,7 +9,6 @@ import { DEFAULT_PAGE_SIZE } from '@/shared/constants';
 import { adminCenterApiService } from '@/api/admin-center/admin-center.api.service';
 import { formatDateTimeWithLocale } from '@/utils/format-date-time-with-locale';
 import logger from '@/utils/errorLogger';
-import { deleteProject } from '@features/projects/projectsSlice';
 import './projects.css';
 import { useMixpanelTracking } from '@/hooks/useMixpanelTracking';
 import { evt_admin_center_projects_visit } from '@/shared/worklenz-analytics-events';
@@ -152,17 +151,19 @@ const Projects: React.FC = () => {
         key: 'button',
         render: (record: IOrganizationProject) => (
           <div className="row-buttons">
-            <Tooltip title={t('delete')}>
-              <Popconfirm
-                title={t('confirm')}
-                description={t('deleteProject')}
-                onConfirm={() => deleteProject(record.id ?? '')}
+            <Popconfirm
+              title={t('confirm')}
+              description={t('deleteProject')}
+              onConfirm={() => deleteProject(record.id ?? '')}
+            >
+              <Button
+                size="small"
+                aria-label={t('delete')}
+                title={t('delete')}
               >
-                <Button size="small">
-                  <DeleteOutlined />
-                </Button>
-              </Popconfirm>
-            </Tooltip>
+                <DeleteOutlined />
+              </Button>
+            </Popconfirm>
           </div>
         ),
       },
