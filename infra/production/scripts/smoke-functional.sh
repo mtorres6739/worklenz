@@ -56,6 +56,25 @@ curl -skS -H "$origin_host" -o /dev/null -c "$cookie_jar" \
 verify_json="$(curl -skS -H "$origin_host" -b "$cookie_jar" "$base_url/secure/verify")"
 [[ "$(jq -r '.authenticated' <<<"$verify_json")" == "true" ]]
 
+branding_json="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
+  "$base_url/api/v1/admin-center/organization/branding")"
+assert_done "Organization branding read" "$branding_json"
+jq -e '
+  .body
+  | has("display_name")
+    and has("accent_color")
+    and has("page_title")
+    and has("email_from_name")
+    and has("email_from_address")
+    and has("portal_appearance")
+    and has("invoice_appearance")
+    and has("logo_url")
+    and has("favicon_url")
+' <<<"$branding_json" >/dev/null || {
+  echo "Organization branding read returned an incomplete response." >&2
+  exit 1
+}
+
 status_id="$(curl -skS -H "$origin_host" -b "$cookie_jar" \
   "$base_url/api/v1/project-statuses" | jq -er '.body[0].id')"
 project_name="Production Smoke Test $(date -u +%Y%m%dT%H%M%SZ)"
@@ -108,4 +127,4 @@ project_delete="$(curl -skS -X DELETE -H "$origin_host" \
 assert_done "Project deletion" "$project_delete"
 project_id=""
 
-echo "Authenticated project and task CRUD smoke test passed."
+echo "Authenticated branding, project, and task CRUD smoke test passed."

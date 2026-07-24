@@ -41,7 +41,14 @@ from `GET /api/v1/system/branding`.
 Logo and favicon objects remain private and are rendered through short-lived signed
 URLs. Image uploads validate MIME type, magic bytes, and size. Sender addresses must
 belong to `ALLOWED_EMAIL_FROM_DOMAINS` or the domain already configured in
-`EMAIL_FROM`; that domain must be verified with SES before it is selected.
+`EMAIL_FROM`; that domain must be verified with the selected transactional provider
+before it is selected. Production currently uses the verified Resend domain
+`notifications.myfusionadmin.com`.
+
+The release smoke test authenticates as the owner and requires the Admin Center
+branding endpoint to return the complete branding contract before exercising project
+and task CRUD. This prevents route or capability regressions from silently returning
+404 after a release.
 
 ## Slack
 
@@ -83,4 +90,3 @@ Before either integration is enabled:
 3. Complete invited-user, unknown-user, owner-fallback, signature, replay, revocation,
    and tenant-scope tests.
 4. Enable one flag at a time and run the internal pilot before client exposure.
-

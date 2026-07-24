@@ -236,3 +236,17 @@ AWS SES production access and the observation-period/client-enrollment gates rem
 Transactional delivery is no longer a client-pilot blocker. AWS SES remains disabled
 as an optional future fallback. The observation-period and explicit Cloudflare Access
 client-enrollment gates still apply.
+
+### Branding regression follow-up: 2026-07-24
+
+- The production Admin Center branding route is registered and returns 401 to an
+  unauthenticated request instead of 404.
+- The production branding service returns the complete display, accent, page-title,
+  sender, portal, invoice, logo, and favicon response contract for the active
+  organization.
+- The authenticated production smoke test now asserts that same response contract
+  before running its project and task CRUD fixtures. The full smoke test passed and
+  removed its disposable project and task.
+
+The historical Admin Center branding 404 is closed. The authenticated branding check
+is now part of every manual release smoke test.

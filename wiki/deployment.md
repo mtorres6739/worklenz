@@ -189,5 +189,6 @@ an incompatible schema migration.
 
 For a release smoke test, securely pipe the initial owner's email and password as two
 stdin lines to `/srv/worklenz/scripts/smoke-functional.sh`. The script authenticates,
-obtains a CSRF token, performs project and task create/read/update/delete checks, and
-removes its fixtures. It never reads credentials from command-line arguments.
+obtains a CSRF token, verifies the complete Admin Center branding response, performs
+project and task create/read/update/delete checks, and removes its fixtures. It never
+reads credentials from command-line arguments.
