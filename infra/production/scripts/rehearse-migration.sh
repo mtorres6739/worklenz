@@ -76,8 +76,14 @@ for _ in {1..30}; do
   sleep 2
 done
 docker exec "$container_name" psql -U rehearsal -d rehearsal -Atc "SELECT 1" | grep -qx 1
+# The production database image initializes the CE base schema for fresh installs.
+# Restore rehearsals need a truly empty target: restoring a newer backup over that
+# initialized schema with --clean can fail when a new child table prevents pg_restore
+# from dropping its parent table in TOC order.
+docker exec "$container_name" dropdb --force -U rehearsal rehearsal
+docker exec "$container_name" createdb -U rehearsal -O rehearsal rehearsal
 docker exec -i "$container_name" pg_restore -U rehearsal -d rehearsal \
-  --clean --if-exists --no-owner --no-privileges < "$tmp_dir/backup.dump"
+  --no-owner --no-privileges < "$tmp_dir/backup.dump"
 
 run_migration() {
   docker run --rm --network "$network_name" \
@@ -116,7 +122,7 @@ case "$(basename "$migration_file")" in
               'portal_request_attachments_request_scope_fk'
             )
          );" | grep -qx t
-  docker exec -i "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -At <<'SQL' \
+  docker exec -i "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -qAt <<'SQL' \
     | grep -qx t
 BEGIN;
 DO $$
