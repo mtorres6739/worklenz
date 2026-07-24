@@ -272,6 +272,7 @@ export interface ClientPortalClient {
   projects: ClientPortalProject[];
   team_members: ClientPortalTeamMember[];
   status: 'active' | 'inactive' | 'pending';
+  client_portal_enabled?: boolean;
   created_at: string;
   updated_at: string;
   // Portal access fields
@@ -279,7 +280,7 @@ export interface ClientPortalClient {
   invitation_sent_at?: string;
   invitation_accepted?: boolean;
   portal_status?: {
-    status: 'active' | 'invited' | 'not_invited' | 'expired';
+    status: 'active' | 'inactive' | 'invited' | 'not_invited' | 'expired';
     label: string;
     color: string;
   };
@@ -1145,7 +1146,13 @@ export const clientPortalApi = createApi({
               const target = clients.find((c: any) => c.id === id);
               if (target) {
                 target.status = 'inactive';
+                target.client_portal_enabled = false;
                 target.has_portal_access = false;
+                target.portal_status = {
+                  status: 'inactive',
+                  label: 'Inactive',
+                  color: 'default',
+                };
               }
             })
           );
@@ -1206,9 +1213,7 @@ export const clientPortalApi = createApi({
     >({
       query: ({ projectId, taskId }) =>
         `/clients/portal/projects/${projectId}/tasks/${taskId}/comments`,
-      providesTags: (_result, _error, { taskId }) => [
-        { type: 'ClientTaskComments', id: taskId },
-      ],
+      providesTags: (_result, _error, { taskId }) => [{ type: 'ClientTaskComments', id: taskId }],
     }),
 
     addClientPortalTaskComment: builder.mutation<

@@ -330,7 +330,10 @@ const ClientsTable = () => {
             const target = clients.find((c: any) => c.id === clientId);
             if (target) {
               target.status = 'active';
-              target.has_portal_access = true;
+              target.client_portal_enabled = true;
+              target.portal_status = target.has_portal_access
+                ? { status: 'active', label: 'Active', color: 'green' }
+                : undefined;
             }
           })
         )
@@ -611,11 +614,13 @@ const ClientsTable = () => {
             defaultValue:
               status.status === 'active'
                 ? 'Active'
-                : status.status === 'expired'
-                  ? 'Expired'
-                  : status.status === 'invited'
-                    ? 'Invited'
-                    : 'Not Invited',
+                : status.status === 'inactive'
+                  ? 'Inactive'
+                  : status.status === 'expired'
+                    ? 'Expired'
+                    : status.status === 'invited'
+                      ? 'Invited'
+                      : 'Not Invited',
           }),
         };
       }
@@ -626,20 +631,24 @@ const ClientsTable = () => {
           defaultValue:
             status === 'active'
               ? 'Active'
-              : status === 'expired'
-                ? 'Expired'
-                : status === 'invited'
-                  ? 'Invited'
-                  : 'Not Invited',
+              : status === 'inactive'
+                ? 'Inactive'
+                : status === 'expired'
+                  ? 'Expired'
+                  : status === 'invited'
+                    ? 'Invited'
+                    : 'Not Invited',
         }),
         color:
           status === 'active'
             ? 'green'
-            : status === 'expired'
-              ? 'red'
-              : status === 'invited'
-                ? 'orange'
-                : 'default',
+            : status === 'inactive'
+              ? 'default'
+              : status === 'expired'
+                ? 'red'
+                : status === 'invited'
+                  ? 'orange'
+                  : 'default',
       };
     }
 
@@ -921,8 +930,7 @@ const ClientsTable = () => {
                 </Typography.Text>
                 <Typography.Text style={{ color: '#fff' }}>
                   {t('portalStatusHelp.expired', {
-                    defaultValue:
-                      'Expired: Previous invitation expired and should be resent.',
+                    defaultValue: 'Expired: Previous invitation expired and should be resent.',
                   })}
                 </Typography.Text>
               </Flex>

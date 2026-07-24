@@ -296,6 +296,7 @@
   "portalStatusColumn": "Portal Status",
   "portalStatus": {
     "active": "Active",
+    "inactive": "Inactive",
     "invited": "Invited",
     "not_invited": "Not Invited",
     "expired": "Expired"

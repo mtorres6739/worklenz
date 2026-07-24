@@ -177,9 +177,11 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   const isProjectManager = currentSession?.team_member_id == selectedProjectManager?.id;
   const isOwnerorAdmin = useAuthService().isOwnerOrAdmin();
   const isEditable = isProjectManager || isOwnerorAdmin;
-  const { isFreeUser: isFree, hasBusinessAccess } = useBusinessFeatures();
+  const { isFreeUser: isFree, hasCapability } = useBusinessFeatures();
+  const hasFinanceCapability = hasCapability('projectFinance');
+  const hasTaskRestrictionsCapability = hasCapability('projectTaskRestrictions');
   const { promptUpgrade } = useUpgradePrompt();
-  const canManageBudgetSettings = hasBusinessAccess && (isProjectManager || isOwnerorAdmin);
+  const canManageBudgetSettings = hasFinanceCapability && (isProjectManager || isOwnerorAdmin);
 
   // Effects
   useEffect(() => {
@@ -516,7 +518,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       const response = await action;
 
       if (response?.data?.done) {
-        if (editMode && projectId && hasBusinessAccess) {
+        if (editMode && projectId && hasFinanceCapability) {
           const selectedBudget = Number(values.budget ?? 0);
           const selectedCurrency = (values.currency || 'USD').toUpperCase();
           const currentBudget = Number(project?.budget ?? 0);
@@ -542,7 +544,9 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
 
             if (!launchTarget || !defaultAssigneeId) {
               notification.warning({
-                message: t('checklistNotInstalled', { defaultValue: 'Project created without checklist' }),
+                message: t('checklistNotInstalled', {
+                  defaultValue: 'Project created without checklist',
+                }),
                 description: t('checklistNeedsLaunchOwner', {
                   defaultValue:
                     'Set a launch target and project manager, then install the checklist from the project task-template menu.',
@@ -578,9 +582,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             }
           }
           trackMixpanelEvent(evt_projects_create);
-          navigate(
-            `/worklenz/projects/${createdProjectId}?tab=tasks-list&pinned_tab=tasks-list`
-          );
+          navigate(`/worklenz/projects/${createdProjectId}?tab=tasks-list&pinned_tab=tasks-list`);
           setTimeout(() => {
             window.location.reload();
           }, 100);
@@ -708,7 +710,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
   };
 
   // ─── Tab items ────────────────────────────────────────────────────────────
-  const tabItems: TabsProps['items'] = [
+  const allTabItems: TabsProps['items'] = [
     {
       key: 'general',
       label: t('generalTab', { defaultValue: 'General' }),
@@ -768,7 +770,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
           <Form.Item name="notes" label={t('notes')}>
             <Input.TextArea
               placeholder={t('enterNotes')}
-              disabled={!isProjectManager && !isOwnerorAdmin} 
+              disabled={!isProjectManager && !isOwnerorAdmin}
               maxLength={500}
               showCount
             />
@@ -1076,37 +1078,21 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
             {t('accessControlSettingsDescription', {
-              defaultValue:
-                'Control who can create and assign tasks in this project.',
+              defaultValue: 'Control who can create and assign tasks in this project.',
             })}
           </Typography.Paragraph>
 
-          {!hasBusinessAccess && (
+          {!hasTaskRestrictionsCapability && (
             <Alert
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
               message={t('restrictTaskCreationBusinessPlanTitle', {
-                defaultValue: 'Business Plan Required',
+                defaultValue: 'Task restrictions are not enabled',
               })}
-              description={
-                <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-                  <Typography.Text>
-                    {t('restrictTaskCreationBusinessPlanDescription', {
-                      defaultValue:
-                        'Restricting task creation to Admins and Team Leads is available on Business and Enterprise plans.',
-                    })}
-                  </Typography.Text>
-                  <Button
-                    type="primary"
-                    icon={<CrownOutlined />}
-                    onClick={handleUpgradeClick}
-                    aria-label={tCommon('upgrade-plan')}
-                  >
-                    {tCommon('upgrade-plan')}
-                  </Button>
-                </Flex>
-              }
+              description={t('restrictTaskCreationBusinessPlanDescription', {
+                defaultValue: 'Enable the task-restrictions capability for this deployment.',
+              })}
             />
           )}
 
@@ -1131,7 +1117,9 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
             }
             valuePropName="checked"
           >
-            <Switch disabled={(!isProjectManager && !isOwnerorAdmin) || !hasBusinessAccess} />
+            <Switch
+              disabled={(!isProjectManager && !isOwnerorAdmin) || !hasTaskRestrictionsCapability}
+            />
           </Form.Item>
         </>
       ),
@@ -1141,33 +1129,6 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       label: t('budgetSettingsTab', { defaultValue: 'Budget Settings' }),
       children: (
         <>
-          {!hasBusinessAccess && (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={t('budgetBusinessPlanTitle', { defaultValue: 'Business Plan Required' })}
-              description={
-                <Flex justify="space-between" align="center" gap={12} wrap="wrap">
-                  <Typography.Text>
-                    {t('budgetBusinessPlanDescription', {
-                      defaultValue:
-                        'Project budget settings are available on Business and Enterprise plans.',
-                    })}
-                  </Typography.Text>
-                  <Button
-                    type="primary"
-                    icon={<CrownOutlined />}
-                    onClick={handleUpgradeClick}
-                    aria-label={tCommon('upgrade-plan')}
-                  >
-                    {tCommon('upgrade-plan')}
-                  </Button>
-                </Flex>
-              }
-            />
-          )}
-
           {!editMode && (
             <Alert
               type="warning"
@@ -1236,6 +1197,7 @@ export const ProjectDrawer = ({ onClose }: { onClose: () => void }) => {
       ),
     },
   ];
+  const tabItems = allTabItems.filter(item => item?.key !== 'budget' || hasFinanceCapability);
 
   return (
     <Drawer

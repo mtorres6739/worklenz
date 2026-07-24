@@ -209,6 +209,7 @@
   "portalStatusColumn": "Status do Portal",
   "portalStatus": {
     "active": "Ativo",
+    "inactive": "Inativo",
     "invited": "Convidado",
     "not_invited": "Não Convidado",
     "expired": "Expirado"

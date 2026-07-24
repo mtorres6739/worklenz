@@ -158,6 +158,7 @@
   "portalStatusColumn": "Statusi i Portalit",
   "portalStatus": {
     "active": "Aktiv",
+    "inactive": "Joaktiv",
     "invited": "I Ftuar",
     "not_invited": "Nuk është Ftuar",
     "expired": "Ka Skaduar"

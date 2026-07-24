@@ -7,6 +7,7 @@ import { createPortalInvitation } from "../services/client-portal-invitation.ser
 import { auditPortalEvent } from "../services/client-portal-session.service";
 import { isValidateEmail } from "../shared/utils";
 import { IO } from "../shared/io";
+import { resolvePortalClientStatus } from "../shared/client-portal-status";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SORT_FIELDS: Record<string, string> = {
@@ -64,7 +65,7 @@ export default class ClientPortalAdminController {
               EXISTS (
                 SELECT 1 FROM portal_client_memberships pm
                  WHERE pm.client_id = c.id AND pm.team_id = c.team_id AND pm.is_active = TRUE
-              ) AS has_portal_access,
+              ) AS has_active_membership,
               (SELECT MAX(pi.created_at) FROM portal_invitations pi
                 WHERE pi.client_id = c.id AND pi.team_id = c.team_id) AS invitation_sent_at,
               (SELECT pi.status FROM portal_invitations pi
@@ -82,16 +83,21 @@ export default class ClientPortalAdminController {
         LIMIT $4 OFFSET $5`,
       [teamId, search, status, limit, (page - 1) * limit],
     );
-    const clients = result.rows.map(row => ({
-      ...row,
-      portal_status: row.has_portal_access
-        ? { status: "active", label: "Active", color: "green" }
-        : row.invitation_status === "pending"
-          ? { status: "invited", label: "Invited", color: "blue" }
-          : { status: "not_invited", label: "Not invited", color: "default" },
-      projects: [],
-      team_members: [],
-    }));
+    const clients = result.rows.map(row => {
+      const hasPortalAccess = Boolean(
+        row.status === "active" &&
+        row.client_portal_enabled &&
+        row.has_active_membership,
+      );
+      const { has_active_membership: _hasActiveMembership, ...client } = row;
+      return {
+        ...client,
+        has_portal_access: hasPortalAccess,
+        portal_status: resolvePortalClientStatus(row),
+        projects: [],
+        team_members: [],
+      };
+    });
     return res.send(new ServerResponse(true, { clients, total: result.rows[0]?.full_count || 0, page, limit }));
   }
 
@@ -201,7 +207,13 @@ export default class ClientPortalAdminController {
          contact_person = COALESCE($6, contact_person), phone = COALESCE($7, phone),
          phone_country_code = COALESCE($8, phone_country_code), address_line_1 = COALESCE($9, address_line_1),
          city = COALESCE($10, city), state = COALESCE($11, state), zip_code = COALESCE($12, zip_code),
-         country = COALESCE($13, country), status = COALESCE($14, status), updated_at = CURRENT_TIMESTAMP
+         country = COALESCE($13, country), status = COALESCE($14, status),
+         client_portal_enabled = CASE
+           WHEN $14 = 'active' THEN TRUE
+           WHEN $14 = 'inactive' THEN FALSE
+           ELSE client_portal_enabled
+         END,
+         updated_at = CURRENT_TIMESTAMP
        WHERE id = $1::UUID AND team_id = $2::UUID RETURNING *`,
       [
         clientId, staff.teamId, text(req.body?.name, 60), email, text(req.body?.company_name, 120),

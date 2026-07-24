@@ -1,17 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Button,
-  Dropdown,
-  Tooltip,
-  Badge,
-  ApiOutlined,
-  CrownOutlined,
-} from '@/shared/antd-imports';
+import { Button, Dropdown, Tooltip, Badge, ApiOutlined } from '@/shared/antd-imports';
 import { IntegrationsDropdown } from './IntegrationsDropdown';
 import { slackApiService } from '@api/slack/slack.api.service';
 import { useBusinessFeatures } from '@/worklenz-ee/hooks/use-business-features';
-import { useUpgradePrompt } from '@/worklenz-ee/hooks/use-upgrade-prompt';
 import type { ProjectIntegrationStatus } from './integrations.types';
 
 interface ProjectIntegrationsButtonProps {
@@ -24,15 +16,15 @@ export const ProjectIntegrationsButton: React.FC<ProjectIntegrationsButtonProps>
   projectName,
 }) => {
   const { t } = useTranslation('project-integrations');
-  const { hasBusinessAccess } = useBusinessFeatures();
-  const { promptUpgrade } = useUpgradePrompt();
+  const { capabilitiesLoaded, hasCapability } = useBusinessFeatures();
+  const hasSlackCapability = hasCapability('slack');
 
   const [open, setOpen] = useState(false);
   const [integrationStatus, setIntegrationStatus] = useState<ProjectIntegrationStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchIntegrationStatus = useCallback(async () => {
-    if (!projectId || !hasBusinessAccess) return;
+    if (!projectId || !capabilitiesLoaded || !hasSlackCapability) return;
 
     try {
       setLoading(true);
@@ -75,13 +67,13 @@ export const ProjectIntegrationsButton: React.FC<ProjectIntegrationsButtonProps>
     } finally {
       setLoading(false);
     }
-  }, [projectId, hasBusinessAccess]);
+  }, [capabilitiesLoaded, hasSlackCapability, projectId]);
 
   useEffect(() => {
-    if (projectId) {
+    if (projectId && capabilitiesLoaded && hasSlackCapability) {
       fetchIntegrationStatus();
     }
-  }, [projectId, fetchIntegrationStatus]);
+  }, [capabilitiesLoaded, fetchIntegrationStatus, hasSlackCapability, projectId]);
 
   const activeCount = useMemo(() => {
     if (!integrationStatus) return 0;
@@ -96,22 +88,9 @@ export const ProjectIntegrationsButton: React.FC<ProjectIntegrationsButtonProps>
     fetchIntegrationStatus();
   }, [fetchIntegrationStatus]);
 
-  const handleUpgradeClick = useCallback(() => {
-    promptUpgrade();
-  }, [promptUpgrade]);
-
-  // Show premium button for non-business users
-  if (!hasBusinessAccess) {
-    return (
-      <Tooltip
-        title={t('upgradeRequired', { defaultValue: 'Integrations available on Business plan' })}
-      >
-        <Badge count={<CrownOutlined style={{ color: '#faad14' }} />} offset={[-5, 5]}>
-          <Button shape="circle" icon={<ApiOutlined />} onClick={handleUpgradeClick} />
-        </Badge>
-      </Tooltip>
-    );
-  }
+  // Unreleased integrations stay absent instead of making gated API calls or
+  // rendering a commercial upgrade prompt in the self-hosted build.
+  if (!capabilitiesLoaded || !hasSlackCapability) return null;
 
   return (
     <Dropdown

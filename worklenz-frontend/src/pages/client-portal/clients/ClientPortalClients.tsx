@@ -9,12 +9,7 @@ import {
   Col,
   Space,
 } from '@/shared/antd-imports';
-import {
-  PlusOutlined,
-  UserOutlined,
-  TeamOutlined,
-  ProjectOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, TeamOutlined, ProjectOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '@/hooks/useAppDispatch';
 import { toggleAddClientDrawer } from '@/features/clients-portal/clients/clients-slice';
@@ -58,8 +53,11 @@ const ClientPortalClients = () => {
   // A client is "active" if they have portal access (has_portal_access === true)
   const activeClients =
     clientsData?.body?.clients?.filter((client: ClientPortalClient) => {
-      // Check if client has active portal access
-      return client.has_portal_access === true || client.portal_status?.status === 'active';
+      return (
+        client.status === 'active' &&
+        client.client_portal_enabled !== false &&
+        (client.has_portal_access === true || client.portal_status?.status === 'active')
+      );
     }).length || 0;
   const totalProjects =
     clientsData?.body?.clients?.reduce(

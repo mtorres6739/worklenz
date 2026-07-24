@@ -206,6 +206,7 @@
   "portalStatusColumn": "门户状态",
   "portalStatus": {
     "active": "活跃",
+    "inactive": "非活跃",
     "invited": "已邀请",
     "not_invited": "未邀请",
     "expired": "已过期"

@@ -250,6 +250,7 @@
   "portalStatusColumn": "Estado del Portal",
   "portalStatus": {
     "active": "Activo",
+    "inactive": "Inactivo",
     "invited": "Invitado",
     "not_invited": "No Invitado",
     "expired": "Expirado"
