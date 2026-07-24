@@ -30,6 +30,7 @@ import {
   useGetClientProjectsQuery,
   useAssignProjectToClientMutation,
   useRemoveProjectFromClientMutation,
+  type ClientPortalProject,
 } from '../../api/client-portal/client-portal-api';
 import { useGetProjectsQuery } from '../../api/projects/projects.v1.api.service';
 import { useState, useMemo } from 'react';
@@ -52,6 +53,7 @@ const ClientSettingsDrawer = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [accessLevel, setAccessLevel] = useState<'view' | 'comment'>('view');
   const [canViewFiles, setCanViewFiles] = useState(true);
+  const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
 
   // RTK Query hooks - only load data when drawer is open
   const {
@@ -141,6 +143,30 @@ const ClientSettingsDrawer = () => {
       refetchClientProjects();
     } catch (error: any) {
       message.error(t('projectRemovedErrorMessage') || 'Failed to remove project');
+    }
+  };
+
+  const handleUpdateProjectAccess = async (
+    project: ClientPortalProject,
+    updates: Partial<Pick<ClientPortalProject, 'access_level' | 'can_view_files'>>
+  ) => {
+    if (!selectedClientId) return;
+
+    setUpdatingProjectId(project.id);
+    try {
+      await assignProject({
+        clientId: selectedClientId,
+        projectId: project.id,
+        accessLevel: updates.access_level ?? project.access_level,
+        canViewFiles: updates.can_view_files ?? project.can_view_files,
+      }).unwrap();
+
+      message.success('Portal access updated');
+      await Promise.all([refetchClientDetails(), refetchClientProjects()]);
+    } catch (error: any) {
+      message.error(error?.data?.message || 'Failed to update portal access');
+    } finally {
+      setUpdatingProjectId(null);
     }
   };
 
@@ -247,6 +273,35 @@ const ClientSettingsDrawer = () => {
             </Button>
           </Tooltip>
 
+          <div style={{ minWidth: 150 }}>
+            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+              Portal access
+            </Typography.Text>
+            <Select
+              value={record.access_level}
+              onChange={nextAccessLevel =>
+                handleUpdateProjectAccess(record, { access_level: nextAccessLevel })
+              }
+              loading={updatingProjectId === record.id}
+              disabled={updatingProjectId === record.id}
+              style={{ width: '100%' }}
+              options={[
+                { value: 'view', label: 'Read only' },
+                { value: 'comment', label: 'Can comment' },
+              ]}
+            />
+          </div>
+
+          <Checkbox
+            checked={record.can_view_files}
+            disabled={updatingProjectId === record.id}
+            onChange={event =>
+              handleUpdateProjectAccess(record, { can_view_files: event.target.checked })
+            }
+          >
+            Show files
+          </Checkbox>
+
           <Popconfirm
             title={t('removeProjectConfirmationTitle') || 'Remove Project'}
             description={
@@ -259,25 +314,6 @@ const ClientSettingsDrawer = () => {
             onConfirm={() => handleRemoveProject(record.id)}
           >
             <Tooltip title={t('removeProjectTooltip') || 'Remove Project'}>
-              <div style={{ minWidth: 150 }}>
-                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-                  Portal access
-                </Typography.Text>
-                <Select
-                  value={accessLevel}
-                  onChange={setAccessLevel}
-                  style={{ width: '100%' }}
-                  options={[
-                    { value: 'view', label: 'Read only' },
-                    { value: 'comment', label: 'Can comment' },
-                  ]}
-                />
-              </div>
-
-              <Checkbox checked={canViewFiles} onChange={event => setCanViewFiles(event.target.checked)}>
-                Show files
-              </Checkbox>
-
               <Button
                 type="link"
                 icon={<DeleteOutlined />}
