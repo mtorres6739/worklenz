@@ -92,6 +92,36 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400030_password_reset_tokens.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.password_reset_tokens') IS NOT NULL
+         AND (
+           SELECT COUNT(*) = 5
+             FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'password_reset_tokens'
+              AND indexname IN (
+                'idx_password_reset_tokens_user_id',
+                'idx_password_reset_tokens_token_hash',
+                'idx_password_reset_tokens_is_used',
+                'idx_password_reset_tokens_expires_at',
+                'idx_password_reset_tokens_lookup'
+              )
+         );" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "BEGIN;
+     INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+     SELECT id, 'migration-rehearsal-token-hash', CURRENT_TIMESTAMP + INTERVAL '1 hour'
+       FROM users
+      ORDER BY created_at
+      LIMIT 1;
+     SELECT COUNT(*) = 1
+       FROM password_reset_tokens
+      WHERE token_hash = 'migration-rehearsal-token-hash'
+        AND is_used = FALSE
+        AND expires_at > CURRENT_TIMESTAMP;
+     ROLLBACK;" | grep -qx t
+  ;;
 2026072400020_user_auth_compatibility.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT EXISTS (

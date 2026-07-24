@@ -91,6 +91,8 @@ jobs:
           psql -Atc "SELECT to_regclass('public.idx_email_delivery_events_provider_event_recipient') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'apple_id'" | grep -qx t
           psql -Atc "SELECT to_regclass('public.idx_users_apple_id') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.password_reset_tokens') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 5 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'password_reset_tokens' AND indexname IN ('idx_password_reset_tokens_user_id','idx_password_reset_tokens_token_hash','idx_password_reset_tokens_is_used','idx_password_reset_tokens_expires_at','idx_password_reset_tokens_lookup')" | grep -qx t
           psql -Atc "SELECT to_regprocedure('public.update_email_log_status()') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM pg_constraint WHERE conrelid = 'portal_project_access'::regclass AND conname = 'portal_project_access_project_unique'" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 7 FROM pg_constraint WHERE conname IN ('portal_session_membership_actor_fk','portal_comment_membership_scope_fk','portal_comment_client_scope_fk','portal_comment_project_scope_fk','portal_comment_task_scope_fk','portal_project_access_client_scope_fk','portal_project_access_project_scope_fk')" | grep -qx t

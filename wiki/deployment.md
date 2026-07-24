@@ -109,6 +109,12 @@ reset selects this optional identity field even while Apple login is disabled.
 Fresh-install CI and the restore-clone rehearsal both execute that query so reset email
 cannot regress behind a missing optional-provider column.
 
+The follow-up `2026072400030_password_reset_tokens` migration restores the one-time,
+hashed staff password-reset token store that current authentication code requires but
+the controlled CE schema omitted. It includes user cleanup and lookup indexes, keeps
+rollback data intact, and is exercised transactionally in fresh-install CI and the
+encrypted restore-clone rehearsal.
+
 The fork-owned `2026072000065_task-template-accountability` migration adds immutable
 template metadata, stable item keys, descriptions, labels, hierarchy, estimates,
 launch-relative due offsets, dependencies, and idempotent project-import records. It

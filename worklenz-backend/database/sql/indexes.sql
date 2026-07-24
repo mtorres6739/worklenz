@@ -8,6 +8,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS bounced_emails_email_uindex
 CREATE INDEX IF NOT EXISTS idx_users_apple_id
     ON users (apple_id);
 
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id
+    ON password_reset_tokens (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash
+    ON password_reset_tokens (token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_is_used
+    ON password_reset_tokens (is_used);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at
+    ON password_reset_tokens (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_lookup
+    ON password_reset_tokens (token_hash, is_used, expires_at);
+
 CREATE INDEX IF NOT EXISTS clients_id_team_id_index
     ON clients (id, team_id);
 

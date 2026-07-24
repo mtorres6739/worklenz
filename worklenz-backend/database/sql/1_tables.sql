@@ -1465,6 +1465,19 @@ ALTER TABLE users
     ADD CONSTRAINT users_pk
         PRIMARY KEY (id);
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id         UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    user_id    UUID                                                NOT NULL,
+    token_hash TEXT                                                NOT NULL,
+    is_used    BOOLEAN                  DEFAULT FALSE              NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE                            NOT NULL,
+    used_at    TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT password_reset_tokens_pk PRIMARY KEY (id),
+    CONSTRAINT password_reset_tokens_user_id_fk
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS task_template_imports (
     id                   UUID                     DEFAULT uuid_generate_v4() NOT NULL,
     project_id           UUID                                                NOT NULL,
