@@ -92,6 +92,35 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400000_email_delivery_tracking.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT to_regclass('public.email_delivery_events') IS NOT NULL
+         AND (
+           SELECT COUNT(*) = 5
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'email_logs'
+              AND column_name IN ('status', 'message_id', 'error_details', 'delivered_at', 'updated_at')
+         )
+         AND to_regprocedure('public.update_email_log_status()') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+             FROM pg_trigger
+            WHERE tgrelid = 'email_delivery_events'::regclass
+              AND tgname = 'trigger_update_email_log_status'
+              AND NOT tgisinternal
+         );" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "BEGIN;
+     INSERT INTO email_logs (email, subject, html, message_id)
+     VALUES ('rehearsal@example.invalid', 'migration rehearsal', '<p>migration rehearsal</p>', 'migration-rehearsal-message');
+     INSERT INTO email_delivery_events (message_id, event_type, recipient_email, timestamp)
+     VALUES ('migration-rehearsal-message', 'delivery', 'rehearsal@example.invalid', CURRENT_TIMESTAMP);
+     SELECT status = 'delivered' AND delivered_at IS NOT NULL
+       FROM email_logs
+      WHERE message_id = 'migration-rehearsal-message';
+     ROLLBACK;" | grep -qx t
+  ;;
 2026072100210_portal_file_scope.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT to_regclass('public.project_files') IS NOT NULL
