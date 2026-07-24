@@ -313,17 +313,17 @@ const ClientSettingsDrawer = () => {
             cancelText={t('removeConfirmationCancel') || 'Cancel'}
             onConfirm={() => handleRemoveProject(record.id)}
           >
-            <Tooltip title={t('removeProjectTooltip') || 'Remove Project'}>
-              <Button
-                type="link"
-                icon={<DeleteOutlined />}
-                size="small"
-                danger
-                loading={isRemoving}
-              >
-                {t('removeButton') || 'Remove'}
-              </Button>
-            </Tooltip>
+            <Button
+              type="link"
+              icon={<DeleteOutlined />}
+              size="small"
+              danger
+              loading={isRemoving}
+              title={t('removeProjectTooltip') || 'Remove Project'}
+              aria-label={t('removeProjectTooltip') || 'Remove Project'}
+            >
+              {t('removeButton') || 'Remove'}
+            </Button>
           </Popconfirm>
         </Flex>
       ),

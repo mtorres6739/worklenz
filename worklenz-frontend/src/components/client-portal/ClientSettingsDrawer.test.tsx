@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -128,5 +128,28 @@ describe('ClientSettingsDrawer project access controls', () => {
     expect(
       screen.queryByText('Are you sure you want to remove this project from the client?')
     ).not.toBeInTheDocument();
+  });
+
+  it('removes an assigned project after confirmation', async () => {
+    const user = userEvent.setup();
+    render(<ClientSettingsDrawer />);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Project' }));
+
+    const confirmation = await screen.findByText(
+      'Are you sure you want to remove this project from the client?'
+    );
+    const popover = confirmation.closest('.ant-popover-inner');
+    expect(popover).not.toBeNull();
+
+    await user.click(within(popover as HTMLElement).getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() =>
+      expect(mocks.removeProject).toHaveBeenCalledWith({
+        clientId: 'client-1',
+        projectId: 'project-1',
+      })
+    );
+    expect(mocks.refetchClientProjects).toHaveBeenCalled();
   });
 });
