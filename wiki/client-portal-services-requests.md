@@ -77,4 +77,27 @@ embedding base64 data or exposing an object-storage key.
 Local foundation validation on 2026-07-24 passed backend CE typecheck, targeted security
 and isolation tests, a Sentry-disabled frontend production build, high/critical
 dependency gates, the commercial-gate inventory, shell validation, and a fresh database
-plus repeated migration run. This evidence is not a production release gate by itself.
+plus repeated migration run.
+
+## Production foundation release
+
+The disabled foundation was released on 2026-07-24 as immutable commit
+`5b80cf342a0a6ef79e82f379d6c759df702ad6a3`.
+
+- CI and all four immutable container builds/scans passed.
+- The migration was rehearsed twice against an isolated encrypted production restore.
+- Deployment created encrypted backup
+  `postgres/pre-deploy/worklenz-20260724T191510Z.dump.age`.
+- PostgreSQL recorded migration `2026072400040_portal_services_requests`, and all six
+  expected tables were verified.
+- Backend, frontend, PostgreSQL, and Redis reported healthy; the gateway started and
+  the deployment health check passed.
+- Authenticated branding, project, and task CRUD passed after deployment.
+- The capability response reported `clientPortal=true`,
+  `clientPortalServices=false`, and `clientPortalRequests=false`.
+- Direct origin HTTPS remained blocked while the Cloudflare route remained available.
+- Backup-age monitoring reported a current backup.
+
+This release installs only the gated foundation. Services and Requests remain hidden
+and inaccessible until private request attachments and the full restore-clone
+Client A/Client B isolation gate are complete.
