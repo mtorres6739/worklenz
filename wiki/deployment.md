@@ -102,6 +102,13 @@ replaces the upstream leaf-task progress function, which divided by zero when a 
 had no subtasks, with the reviewed manual-progress-aware implementation. Fresh-install
 CI selects the organization fields and calculates progress for a real leaf task.
 
+The fork-owned `2026072400020_user_auth_compatibility` migration adds the
+`users.apple_id` column and lookup index referenced by current shared authentication
+queries. The controlled CE base schema predates upstream Apple sign-in, but password
+reset selects this optional identity field even while Apple login is disabled.
+Fresh-install CI and the restore-clone rehearsal both execute that query so reset email
+cannot regress behind a missing optional-provider column.
+
 The fork-owned `2026072000065_task-template-accountability` migration adds immutable
 template metadata, stable item keys, descriptions, labels, hierarchy, estimates,
 launch-relative due offsets, dependencies, and idempotent project-import records. It

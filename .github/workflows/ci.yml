@@ -89,6 +89,8 @@ jobs:
           psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_logs' AND column_name = 'provider'" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 2 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'email_delivery_events' AND column_name IN ('provider','provider_event_id')" | grep -qx t
           psql -Atc "SELECT to_regclass('public.idx_email_delivery_events_provider_event_recipient') IS NOT NULL" | grep -qx t
+          psql -Atc "SELECT COUNT(*) = 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'apple_id'" | grep -qx t
+          psql -Atc "SELECT to_regclass('public.idx_users_apple_id') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT to_regprocedure('public.update_email_log_status()') IS NOT NULL" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 1 FROM pg_constraint WHERE conrelid = 'portal_project_access'::regclass AND conname = 'portal_project_access_project_unique'" | grep -qx t
           psql -Atc "SELECT COUNT(*) = 7 FROM pg_constraint WHERE conname IN ('portal_session_membership_actor_fk','portal_comment_membership_scope_fk','portal_comment_client_scope_fk','portal_comment_project_scope_fk','portal_comment_task_scope_fk','portal_project_access_client_scope_fk','portal_project_access_project_scope_fk')" | grep -qx t

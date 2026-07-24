@@ -92,6 +92,22 @@ run_migration
 run_migration
 
 case "$(basename "$migration_file")" in
+2026072400020_user_auth_compatibility.js)
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT EXISTS (
+           SELECT 1
+             FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'users'
+              AND column_name = 'apple_id'
+         )
+         AND to_regclass('public.idx_users_apple_id') IS NOT NULL;" | grep -qx t
+  docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
+    "SELECT id, email, google_id, apple_id, password
+       FROM users
+      ORDER BY created_at
+      LIMIT 1;" >/dev/null
+  ;;
 2026072400010_email_provider_tracking.js)
   docker exec "$container_name" psql -U rehearsal -d rehearsal -v ON_ERROR_STOP=1 -Atc \
     "SELECT EXISTS (

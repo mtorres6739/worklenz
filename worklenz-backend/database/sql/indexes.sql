@@ -5,6 +5,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS permissions_name_uindex
 CREATE UNIQUE INDEX IF NOT EXISTS bounced_emails_email_uindex
     ON bounced_emails (email);
 
+CREATE INDEX IF NOT EXISTS idx_users_apple_id
+    ON users (apple_id);
+
 CREATE INDEX IF NOT EXISTS clients_id_team_id_index
     ON clients (id, team_id);
 
