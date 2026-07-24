@@ -20,7 +20,6 @@ import {
 import {
   ArrowLeftOutlined,
   DownOutlined,
-  PaperClipOutlined,
   FileTextOutlined,
   CalendarOutlined,
   UserOutlined,
@@ -39,19 +38,16 @@ import {
   useUpdateOrganizationRequestStatusMutation,
   useGetRequestCommentsQuery,
   useAddRequestCommentMutation,
+  useDeleteOrganizationRequestAttachmentMutation,
+  useDownloadOrganizationRequestAttachmentMutation,
+  useGetOrganizationRequestAttachmentsQuery,
+  useUploadOrganizationRequestAttachmentMutation,
 } from '../../../../api/client-portal/client-portal-api';
 import { message } from 'antd';
 import { durationDateFormat } from '../../../../utils/durationDateFormat';
+import RequestAttachmentsCard from '@/components/client-portal/RequestAttachmentsCard';
 
 const { TextArea } = Input;
-
-interface Attachment {
-  id: string;
-  url: string;
-  size: string;
-  filename: string;
-  originalName: string;
-}
 
 const ClientPortalRequestDetails = () => {
   // localization
@@ -77,6 +73,12 @@ const ClientPortalRequestDetails = () => {
     skip: !id,
   });
   const [addComment, { isLoading: isAddingComment }] = useAddRequestCommentMutation();
+  const { data: attachmentData, isLoading: attachmentsLoading } =
+    useGetOrganizationRequestAttachmentsQuery(id || '', { skip: !id });
+  const [uploadAttachment, { isLoading: isUploadingAttachment }] =
+    useUploadOrganizationRequestAttachmentMutation();
+  const [downloadAttachment] = useDownloadOrganizationRequestAttachmentMutation();
+  const [deleteAttachment] = useDeleteOrganizationRequestAttachmentMutation();
   const [form] = Form.useForm();
   const commentValue = Form.useWatch('comment', form) || '';
   const commentsResponse = commentsData?.body;
@@ -138,15 +140,7 @@ const ClientPortalRequestDetails = () => {
 
   // Extract request_data fields
   const requestInfo = selectedRequest?.request_data || {};
-  const attachments: Attachment[] = requestInfo.attachments || [];
-
-  // Helper to format file size
-  const formatFileSize = (bytes: string) => {
-    const size = parseInt(bytes, 10);
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  const attachments = attachmentData?.body?.attachments || [];
 
   // Helper to get priority color
   const getPriorityColor = (priority: string) => {
@@ -303,81 +297,42 @@ const ClientPortalRequestDetails = () => {
             </Card>
           )}
 
-          {/* Attachments Section */}
-          {attachments.length > 0 && (
-            <Card
-              size="small"
-              title={
-                <Flex align="center" gap={8}>
-                  <PaperClipOutlined style={{ color: token.colorPrimary }} />
-                  <span>{t1('attachmentsLabel')}</span>
-                  <Badge
-                    count={attachments.length}
-                    style={{
-                      backgroundColor: token.colorPrimary,
-                      marginLeft: 4,
-                    }}
-                  />
-                </Flex>
+          <RequestAttachmentsCard
+            attachments={attachments}
+            loading={attachmentsLoading}
+            canUpload
+            uploading={isUploadingAttachment}
+            onUpload={async file => {
+              if (!id) return;
+              try {
+                await uploadAttachment({ id, file }).unwrap();
+                message.success('Attachment uploaded');
+              } catch (error: any) {
+                message.error(error?.data?.message || 'Attachment could not be uploaded');
               }
-              style={{
-                borderRadius: 12,
-                border: `1px solid ${token.colorBorderSecondary}`,
-              }}
-              styles={{
-                header: { borderBottom: `1px solid ${token.colorBorderSecondary}`, minHeight: 48 },
-                body: { padding: '16px 24px' },
-              }}
-            >
-              <Flex gap={12} wrap="wrap">
-                {attachments.map(attachment => (
-                  <a
-                    key={attachment.id}
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <Flex
-                      align="center"
-                      gap={10}
-                      style={{
-                        padding: '10px 16px',
-                        borderRadius: 8,
-                        border: `1px solid ${token.colorBorder}`,
-                        background: token.colorBgLayout,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                      }}
-                      className="attachment-item"
-                    >
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 8,
-                          backgroundColor: token.colorPrimaryBg,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <PaperClipOutlined style={{ color: token.colorPrimary, fontSize: 16 }} />
-                      </div>
-                      <Flex vertical gap={2}>
-                        <Typography.Text ellipsis style={{ maxWidth: 200, fontWeight: 500 }}>
-                          {attachment.originalName}
-                        </Typography.Text>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          {formatFileSize(attachment.size)}
-                        </Typography.Text>
-                      </Flex>
-                    </Flex>
-                  </a>
-                ))}
-              </Flex>
-            </Card>
-          )}
+            }}
+            onDownload={async attachment => {
+              if (!id) return;
+              try {
+                const result = await downloadAttachment({
+                  id,
+                  attachmentId: attachment.id,
+                }).unwrap();
+                window.open(result.body.url, '_blank', 'noopener,noreferrer');
+              } catch {
+                message.error('Attachment could not be downloaded');
+              }
+            }}
+            onDelete={async attachment => {
+              if (!id) return;
+              try {
+                await deleteAttachment({ id, attachmentId: attachment.id }).unwrap();
+                message.success('Attachment deleted');
+              } catch {
+                message.error('Attachment could not be deleted');
+              }
+            }}
+          />
 
           {/* Service Questions Section */}
           {requestInfo.questionAnswers && requestInfo.questionAnswers.length > 0 && (
@@ -412,13 +367,6 @@ const ClientPortalRequestDetails = () => {
                       question: string;
                       type: string;
                       answer: string | string[] | null;
-                      attachments?: Array<{
-                        id?: string;
-                        url: string;
-                        filename: string;
-                        originalName: string;
-                        size: number;
-                      }>;
                     },
                     index: number
                   ) => (
@@ -429,34 +377,9 @@ const ClientPortalRequestDetails = () => {
                           {qa.question}
                         </Typography.Text>
                         {qa.type === 'attachment' ? (
-                          qa.attachments && qa.attachments.length > 0 ? (
-                            <Flex gap={8} wrap="wrap">
-                              {qa.attachments.map((att, attIndex) => (
-                                <a
-                                  key={attIndex}
-                                  href={att.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{ textDecoration: 'none' }}
-                                >
-                                  <Tag
-                                    icon={<PaperClipOutlined />}
-                                    style={{
-                                      cursor: 'pointer',
-                                      padding: '4px 10px',
-                                      borderRadius: 6,
-                                    }}
-                                  >
-                                    {att.originalName}
-                                  </Tag>
-                                </a>
-                              ))}
-                            </Flex>
-                          ) : (
-                            <Typography.Text type="secondary" style={{ fontStyle: 'italic' }}>
-                              {t1('noFilesUploaded')}
-                            </Typography.Text>
-                          )
+                          <Typography.Text type="secondary" style={{ fontStyle: 'italic' }}>
+                            Files are available in the secure attachments section.
+                          </Typography.Text>
                         ) : (
                           <Typography.Text
                             style={{

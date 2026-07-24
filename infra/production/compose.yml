@@ -37,6 +37,27 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  clamav:
+    image: ${CLAMAV_IMAGE:?CLAMAV_IMAGE must include a digest}
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_CLAMD: "false"
+      CLAMAV_NO_FRESHCLAMD: "false"
+      FRESHCLAM_CHECKS: "12"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping=1 --wait /etc/hostname >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 35s
+      retries: 20
+      start_period: 5m
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks:
+      - data
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+
   migrate:
     image: ${BACKEND_IMAGE:?BACKEND_IMAGE must be an immutable GHCR SHA tag}
     env_file: ${WORKLENZ_ENV_FILE:-.env}
@@ -57,6 +78,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/public/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
@@ -108,6 +131,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  clamav_data:
 
 networks:
   edge:

@@ -11,7 +11,9 @@ export const portalRequestCreateLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: response("Too many requests were submitted. Please try again later."),
+  message: response(
+    "Too many requests were submitted. Please try again later.",
+  ),
 });
 
 export const portalRequestCommentLimiter = rateLimit({
@@ -19,5 +21,17 @@ export const portalRequestCommentLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  message: response("Too many comments were submitted. Please try again later."),
+  message: response(
+    "Too many comments were submitted. Please try again later.",
+  ),
+});
+
+export const portalRequestAttachmentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: response(
+    "Too many attachments were uploaded. Please try again later.",
+  ),
 });

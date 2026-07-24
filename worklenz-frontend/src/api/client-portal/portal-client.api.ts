@@ -139,13 +139,22 @@ export interface PortalRequestComment {
   updated_at: string;
 }
 
+export interface PortalRequestAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number;
+  sender_type: 'client' | 'staff';
+  created_at: string;
+  can_delete?: boolean;
+}
+
 const baseQuery = fetchBaseQuery({
   baseUrl: `${config.apiUrl}/api/client-portal`,
   credentials: 'include',
   prepareHeaders: headers => {
     const csrf = sessionStorage.getItem(CSRF_KEY);
     if (csrf) headers.set('X-Client-CSRF', csrf);
-    headers.set('Content-Type', 'application/json');
     return headers;
   },
 });
@@ -167,6 +176,7 @@ export const portalClientApi = createApi({
     'PortalServices',
     'PortalRequests',
     'PortalRequestComments',
+    'PortalRequestAttachments',
   ],
   endpoints: builder => ({
     getSession: builder.query<PortalSession, void>({
@@ -335,6 +345,53 @@ export const portalClientApi = createApi({
         { type: 'PortalRequests', id },
       ],
     }),
+    getRequestAttachments: builder.query<
+      { attachments: PortalRequestAttachment[]; total: number },
+      string
+    >({
+      query: id => `/requests/${id}/attachments`,
+      transformResponse: (
+        response: ServerResponse<{
+          attachments: PortalRequestAttachment[];
+          total: number;
+        }>
+      ) => response.body,
+      providesTags: (_result, _error, id) => [{ type: 'PortalRequestAttachments', id }],
+    }),
+    uploadRequestAttachment: builder.mutation<PortalRequestAttachment, { id: string; file: File }>({
+      query: ({ id, file }) => {
+        const body = new FormData();
+        body.append('file', file);
+        return {
+          url: `/requests/${id}/attachments`,
+          method: 'POST',
+          body,
+        };
+      },
+      transformResponse: (response: ServerResponse<PortalRequestAttachment>) => response.body,
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'PortalRequestAttachments', id }],
+    }),
+    downloadRequestAttachment: builder.mutation<
+      { url: string; expires_in: number },
+      { id: string; attachmentId: string }
+    >({
+      query: ({ id, attachmentId }) => ({
+        url: `/requests/${id}/attachments/${attachmentId}/download`,
+        method: 'GET',
+      }),
+      transformResponse: (response: ServerResponse<{ url: string; expires_in: number }>) =>
+        response.body,
+    }),
+    deleteRequestAttachment: builder.mutation<{ id: string }, { id: string; attachmentId: string }>(
+      {
+        query: ({ id, attachmentId }) => ({
+          url: `/requests/${id}/attachments/${attachmentId}`,
+          method: 'DELETE',
+        }),
+        transformResponse: (response: ServerResponse<{ id: string }>) => response.body,
+        invalidatesTags: (_result, _error, { id }) => [{ type: 'PortalRequestAttachments', id }],
+      }
+    ),
   }),
 });
 
@@ -361,4 +418,8 @@ export const {
   useGetRequestQuery,
   useGetRequestCommentsQuery,
   useAddRequestCommentMutation,
+  useGetRequestAttachmentsQuery,
+  useUploadRequestAttachmentMutation,
+  useDownloadRequestAttachmentMutation,
+  useDeleteRequestAttachmentMutation,
 } = portalClientApi;

@@ -1,5 +1,11 @@
 import { Request } from "express";
 
+export interface ClientPortalUploadMeta {
+  cleanFileName: string;
+  extension: string;
+  mimeType: string;
+}
+
 export interface ClientPortalActor {
   sessionId: string;
   clientUserId: string;
@@ -16,4 +22,5 @@ export interface ClientPortalActor {
 
 export interface ClientPortalRequest extends Request {
   portalActor?: ClientPortalActor;
+  portalRequestFileMeta?: ClientPortalUploadMeta;
 }

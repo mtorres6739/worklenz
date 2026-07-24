@@ -56,9 +56,10 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   separate-browser walkthrough and one internal business week. See
   [Client Portal collaboration](client-portal-collaboration.md).
 - Wave 5 Services and Requests now have an additive schema, original staff/client APIs,
-  UI wiring, and independent fail-closed capabilities. Production remains disabled
-  until private request attachments, restore-clone isolation, and end-to-end browser
-  gates are complete. See
+  UI wiring, private request attachments, and independent fail-closed capabilities.
+  Production remains disabled until the candidate image passes restore-clone isolation,
+  real clean-upload/download/delete, malware rejection, and end-to-end browser gates.
+  See
   [Client Portal services and requests](client-portal-services-requests.md).
 - Portal invoices, payments, chat, advertised provider integrations, and curated plugins
   remain fail-closed and unimplemented.

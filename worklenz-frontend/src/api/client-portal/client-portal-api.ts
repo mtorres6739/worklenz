@@ -452,7 +452,6 @@ const rawBaseQuery = fetchBaseQuery({
       console.warn('[CSRF] No CSRF token available - request may fail');
     }
 
-    headers.set('Content-Type', 'application/json');
     return headers;
   },
   credentials: 'include',
@@ -520,6 +519,7 @@ export const clientPortalApi = createApi({
     'Profile',
     'Notifications',
     'ClientTaskComments',
+    'RequestAttachments',
   ],
   endpoints: builder => ({
     // Dashboard
@@ -1378,6 +1378,45 @@ export const clientPortalApi = createApi({
       providesTags: ['Requests'],
     }),
 
+    getOrganizationRequestAttachments: builder.query<any, string>({
+      query: id => `/clients/portal/requests/${id}/attachments`,
+      providesTags: (_result, _error, id) => [{ type: 'RequestAttachments', id }],
+    }),
+
+    uploadOrganizationRequestAttachment: builder.mutation<any, { id: string; file: File }>({
+      query: ({ id, file }) => {
+        const body = new FormData();
+        body.append('file', file);
+        return {
+          url: `/clients/portal/requests/${id}/attachments`,
+          method: 'POST',
+          body,
+        };
+      },
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'RequestAttachments', id }],
+    }),
+
+    downloadOrganizationRequestAttachment: builder.mutation<
+      any,
+      { id: string; attachmentId: string }
+    >({
+      query: ({ id, attachmentId }) => ({
+        url: `/clients/portal/requests/${id}/attachments/${attachmentId}/download`,
+        method: 'GET',
+      }),
+    }),
+
+    deleteOrganizationRequestAttachment: builder.mutation<
+      any,
+      { id: string; attachmentId: string }
+    >({
+      query: ({ id, attachmentId }) => ({
+        url: `/clients/portal/requests/${id}/attachments/${attachmentId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'RequestAttachments', id }],
+    }),
+
     getOrganizationServices: builder.query<
       {
         done: boolean;
@@ -1607,6 +1646,10 @@ export const {
   useUpdateOrganizationRequestStatusMutation,
   useAssignOrganizationRequestMutation,
   useGetOrganizationRequestsStatsQuery,
+  useGetOrganizationRequestAttachmentsQuery,
+  useUploadOrganizationRequestAttachmentMutation,
+  useDownloadOrganizationRequestAttachmentMutation,
+  useDeleteOrganizationRequestAttachmentMutation,
   useGetOrganizationServicesQuery,
   useGetOrganizationServiceByIdQuery,
   useCreateOrganizationServiceMutation,

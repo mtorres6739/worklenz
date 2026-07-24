@@ -16,17 +16,31 @@ import { ArrowLeftOutlined, SendOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   useAddRequestCommentMutation,
+  useDeleteRequestAttachmentMutation,
+  useDownloadRequestAttachmentMutation,
   useGetRequestCommentsQuery,
+  useGetRequestAttachmentsQuery,
   useGetRequestQuery,
+  useGetSessionQuery,
+  useUploadRequestAttachmentMutation,
 } from '@/api/client-portal/portal-client.api';
+import RequestAttachmentsCard from '@/components/client-portal/RequestAttachmentsCard';
 
 const ClientViewRequestDetails = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  const { data: session } = useGetSessionQuery();
   const { data: request, isLoading, error } = useGetRequestQuery(id, { skip: !id });
   const { data: commentData } = useGetRequestCommentsQuery(id, { skip: !id });
+  const { data: attachmentData, isLoading: attachmentsLoading } = useGetRequestAttachmentsQuery(
+    id,
+    { skip: !id }
+  );
   const [addComment, { isLoading: isAdding }] = useAddRequestCommentMutation();
+  const [uploadAttachment, { isLoading: isUploading }] = useUploadRequestAttachmentMutation();
+  const [downloadAttachment] = useDownloadRequestAttachmentMutation();
+  const [deleteAttachment] = useDeleteRequestAttachmentMutation();
 
   if (isLoading) return <Spin size="large" />;
   if (error || !request) return <Alert type="error" showIcon message="Request not found" />;
@@ -68,6 +82,40 @@ const ClientViewRequestDetails = () => {
           )}
         </Descriptions>
       </Card>
+      <RequestAttachmentsCard
+        attachments={attachmentData?.attachments || []}
+        loading={attachmentsLoading}
+        canUpload={session?.user.access_level === 'comment'}
+        uploading={isUploading}
+        canDelete={attachment => attachment.can_delete === true}
+        onUpload={async file => {
+          try {
+            await uploadAttachment({ id, file }).unwrap();
+            message.success('Attachment uploaded');
+          } catch (error: any) {
+            message.error(error?.data?.message || 'Attachment could not be uploaded');
+          }
+        }}
+        onDownload={async attachment => {
+          try {
+            const result = await downloadAttachment({
+              id,
+              attachmentId: attachment.id,
+            }).unwrap();
+            window.open(result.url, '_blank', 'noopener,noreferrer');
+          } catch {
+            message.error('Attachment could not be downloaded');
+          }
+        }}
+        onDelete={async attachment => {
+          try {
+            await deleteAttachment({ id, attachmentId: attachment.id }).unwrap();
+            message.success('Attachment deleted');
+          } catch {
+            message.error('Attachment could not be deleted');
+          }
+        }}
+      />
       <Card title="Conversation">
         <Flex vertical gap={14}>
           {(commentData?.comments || []).length === 0 ? (

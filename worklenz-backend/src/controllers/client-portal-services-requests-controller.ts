@@ -5,6 +5,13 @@ import db from "../config/db";
 import { ClientPortalRequest } from "../interfaces/client-portal-request";
 import { ServerResponse } from "../models/server-response";
 import { auditPortalEvent } from "../services/client-portal-session.service";
+import { scanPortalAttachment } from "../services/malware-scanner.service";
+import {
+  createPresignedViewUrl,
+  deleteObject,
+  getClientPortalStorageKey,
+  uploadBuffer,
+} from "../shared/storage";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,6 +81,9 @@ function requiredFieldsSatisfied(
     if (!field || typeof field !== "object") return true;
     const candidate = field as Record<string, unknown>;
     if (candidate.required !== true) return true;
+    // Files are uploaded only after the request has a tenant-scoped ID. The
+    // request details screen clearly prompts for the secure follow-up upload.
+    if (candidate.type === "attachment") return true;
     const answer = answers.find(
       (item) =>
         item &&
@@ -414,5 +424,256 @@ export default class ClientPortalServicesRequestsController {
     return res
       .status(201)
       .send(new ServerResponse(true, result.rows[0], "Comment added"));
+  }
+
+  public static async attachments(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const id = String(req.params.id || "");
+    if (
+      !UUID_PATTERN.test(id) ||
+      !(await scopedRequest(id, actor.teamId, actor.clientId))
+    ) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Request not found"));
+    }
+    const result = await db.query(
+      `SELECT id, file_name AS name, mime_type, size, sender_type, created_at,
+              (membership_id = $4::UUID) AS can_delete
+         FROM portal_request_attachments
+        WHERE request_id = $1::UUID
+          AND team_id = $2::UUID
+          AND client_id = $3::UUID
+        ORDER BY created_at, id`,
+      [id, actor.teamId, actor.clientId, actor.membershipId],
+    );
+    return res.send(
+      new ServerResponse(true, {
+        attachments: result.rows,
+        total: result.rowCount || 0,
+      }),
+    );
+  }
+
+  public static async uploadAttachment(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const requestId = String(req.params.id || "");
+    const file = req.file;
+    const meta = req.portalRequestFileMeta;
+    if (!UUID_PATTERN.test(requestId) || !file || !meta) {
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "Invalid attachment"));
+    }
+    if (!(await scopedRequest(requestId, actor.teamId, actor.clientId))) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Request not found"));
+    }
+
+    const scan = await scanPortalAttachment(file.buffer);
+    if (scan.status === "infected") {
+      await auditPortalEvent({
+        action: "request.attachment.blocked",
+        actor,
+        details: { requestId, reason: "malware_detected" },
+        req,
+      });
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "The attachment was blocked"));
+    }
+    if (scan.status !== "clean") {
+      return res
+        .status(503)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Attachment scanning is temporarily unavailable",
+          ),
+        );
+    }
+
+    const attachmentId = crypto.randomUUID();
+    const objectKey = getClientPortalStorageKey(
+      "request-attachments",
+      actor.teamId,
+      actor.clientId,
+      requestId,
+      `${attachmentId}.${meta.extension}`,
+    );
+    const uploaded = await uploadBuffer(file.buffer, meta.mimeType, objectKey);
+    if (!uploaded) {
+      return res
+        .status(500)
+        .send(new ServerResponse(false, null, "Attachment upload failed"));
+    }
+
+    try {
+      const inserted = await db.query(
+        `INSERT INTO portal_request_attachments
+           (id, request_id, team_id, client_id, membership_id, sender_type,
+            object_key, file_name, mime_type, size)
+         VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, 'client',
+                 $6, $7, $8, $9)
+         RETURNING id, file_name AS name, mime_type, size, sender_type, created_at`,
+        [
+          attachmentId,
+          requestId,
+          actor.teamId,
+          actor.clientId,
+          actor.membershipId,
+          objectKey,
+          meta.cleanFileName,
+          meta.mimeType,
+          file.size,
+        ],
+      );
+      await auditPortalEvent({
+        action: "request.attachment.uploaded",
+        actor,
+        details: { requestId, attachmentId },
+        req,
+      });
+      return res
+        .status(201)
+        .send(
+          new ServerResponse(true, inserted.rows[0], "Attachment uploaded"),
+        );
+    } catch (error) {
+      await deleteObject(objectKey);
+      throw error;
+    }
+  }
+
+  public static async downloadAttachment(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const requestId = String(req.params.id || "");
+    const attachmentId = String(req.params.attachmentId || "");
+    if (!UUID_PATTERN.test(requestId) || !UUID_PATTERN.test(attachmentId)) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const result = await db.query(
+      `SELECT pra.id, pra.file_name, pra.object_key
+         FROM portal_request_attachments pra
+         JOIN portal_requests pr
+           ON pr.id = pra.request_id
+          AND pr.team_id = pra.team_id
+          AND pr.client_id = pra.client_id
+        WHERE pra.id = $1::UUID
+          AND pra.request_id = $2::UUID
+          AND pra.team_id = $3::UUID
+          AND pra.client_id = $4::UUID
+        LIMIT 1`,
+      [attachmentId, requestId, actor.teamId, actor.clientId],
+    );
+    const attachment = result.rows[0];
+    if (!attachment) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const url = await createPresignedViewUrl(
+      attachment.object_key,
+      attachment.file_name,
+      300,
+    );
+    await auditPortalEvent({
+      action: "request.attachment.download.authorized",
+      actor,
+      details: { requestId, attachmentId },
+      req,
+    });
+    return res.send(new ServerResponse(true, { url, expires_in: 300 }));
+  }
+
+  public static async deleteAttachment(
+    req: ClientPortalRequest,
+    res: Response,
+  ): Promise<Response> {
+    const actor = req.portalActor!;
+    const requestId = String(req.params.id || "");
+    const attachmentId = String(req.params.attachmentId || "");
+    if (!UUID_PATTERN.test(requestId) || !UUID_PATTERN.test(attachmentId)) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const attachment = await db.query(
+      `SELECT object_key
+         FROM portal_request_attachments
+        WHERE id = $1::UUID
+          AND request_id = $2::UUID
+          AND team_id = $3::UUID
+          AND client_id = $4::UUID
+          AND membership_id = $5::UUID`,
+      [
+        attachmentId,
+        requestId,
+        actor.teamId,
+        actor.clientId,
+        actor.membershipId,
+      ],
+    );
+    if (!attachment.rowCount) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    if (!(await deleteObject(attachment.rows[0].object_key))) {
+      return res
+        .status(503)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Attachment storage is temporarily unavailable",
+          ),
+        );
+    }
+    const deleted = await db.query(
+      `DELETE FROM portal_request_attachments
+        WHERE id = $1::UUID
+          AND request_id = $2::UUID
+          AND team_id = $3::UUID
+          AND client_id = $4::UUID
+          AND membership_id = $5::UUID
+        RETURNING id`,
+      [
+        attachmentId,
+        requestId,
+        actor.teamId,
+        actor.clientId,
+        actor.membershipId,
+      ],
+    );
+    if (!deleted.rowCount) {
+      return res
+        .status(409)
+        .send(
+          new ServerResponse(false, null, "Attachment changed during deletion"),
+        );
+    }
+    await auditPortalEvent({
+      action: "request.attachment.deleted",
+      actor,
+      details: { requestId, attachmentId },
+      req,
+    });
+    return res.send(
+      new ServerResponse(true, { id: attachmentId }, "Attachment deleted"),
+    );
   }
 }

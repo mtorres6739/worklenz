@@ -5,6 +5,13 @@ import db from "../config/db";
 import { IWorkLenzRequest } from "../interfaces/worklenz-request";
 import { ServerResponse } from "../models/server-response";
 import { auditPortalEvent } from "../services/client-portal-session.service";
+import { scanPortalAttachment } from "../services/malware-scanner.service";
+import {
+  createPresignedViewUrl,
+  deleteObject,
+  getClientPortalStorageKey,
+  uploadBuffer,
+} from "../shared/storage";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -715,5 +722,241 @@ export default class ClientPortalServicesRequestsAdminController {
     return res
       .status(201)
       .send(new ServerResponse(true, result.rows[0], "Comment added"));
+  }
+
+  public static async attachments(
+    req: IWorkLenzRequest,
+    res: Response,
+  ): Promise<Response> {
+    const { teamId } = staffActor(req);
+    const id = String(req.params.id || "");
+    if (!UUID_PATTERN.test(id) || !(await staffRequest(id, teamId))) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Request not found"));
+    }
+    const result = await db.query(
+      `SELECT id, file_name AS name, mime_type, size, sender_type, created_at
+         FROM portal_request_attachments
+        WHERE request_id = $1::UUID AND team_id = $2::UUID
+        ORDER BY created_at, id`,
+      [id, teamId],
+    );
+    return res.send(
+      new ServerResponse(true, {
+        attachments: result.rows,
+        total: result.rowCount || 0,
+      }),
+    );
+  }
+
+  public static async uploadAttachment(
+    req: IWorkLenzRequest,
+    res: Response,
+  ): Promise<Response> {
+    const staff = staffActor(req);
+    const requestId = String(req.params.id || "");
+    const file = req.file;
+    const meta = req.portalRequestFileMeta;
+    if (!UUID_PATTERN.test(requestId) || !file || !meta) {
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "Invalid attachment"));
+    }
+    const request = await staffRequest(requestId, staff.teamId);
+    if (!request) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Request not found"));
+    }
+
+    const scan = await scanPortalAttachment(file.buffer);
+    if (scan.status === "infected") {
+      await auditPortalEvent({
+        action: "request.attachment.blocked",
+        staffUserId: staff.userId,
+        teamId: staff.teamId,
+        clientId: String(request.client_id),
+        details: { requestId, reason: "malware_detected" },
+        req,
+      });
+      return res
+        .status(400)
+        .send(new ServerResponse(false, null, "The attachment was blocked"));
+    }
+    if (scan.status !== "clean") {
+      return res
+        .status(503)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Attachment scanning is temporarily unavailable",
+          ),
+        );
+    }
+
+    const attachmentId = crypto.randomUUID();
+    const clientId = String(request.client_id);
+    const objectKey = getClientPortalStorageKey(
+      "request-attachments",
+      staff.teamId,
+      clientId,
+      requestId,
+      `${attachmentId}.${meta.extension}`,
+    );
+    const uploaded = await uploadBuffer(file.buffer, meta.mimeType, objectKey);
+    if (!uploaded) {
+      return res
+        .status(500)
+        .send(new ServerResponse(false, null, "Attachment upload failed"));
+    }
+
+    try {
+      const inserted = await db.query(
+        `INSERT INTO portal_request_attachments
+           (id, request_id, team_id, client_id, staff_user_id, sender_type,
+            object_key, file_name, mime_type, size)
+         VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, 'staff',
+                 $6, $7, $8, $9)
+         RETURNING id, file_name AS name, mime_type, size, sender_type, created_at`,
+        [
+          attachmentId,
+          requestId,
+          staff.teamId,
+          clientId,
+          staff.userId,
+          objectKey,
+          meta.cleanFileName,
+          meta.mimeType,
+          file.size,
+        ],
+      );
+      await auditPortalEvent({
+        action: "request.attachment.uploaded",
+        staffUserId: staff.userId,
+        teamId: staff.teamId,
+        clientId,
+        details: { requestId, attachmentId },
+        req,
+      });
+      return res
+        .status(201)
+        .send(
+          new ServerResponse(true, inserted.rows[0], "Attachment uploaded"),
+        );
+    } catch (error) {
+      await deleteObject(objectKey);
+      throw error;
+    }
+  }
+
+  public static async downloadAttachment(
+    req: IWorkLenzRequest,
+    res: Response,
+  ): Promise<Response> {
+    const staff = staffActor(req);
+    const requestId = String(req.params.id || "");
+    const attachmentId = String(req.params.attachmentId || "");
+    if (!UUID_PATTERN.test(requestId) || !UUID_PATTERN.test(attachmentId)) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const result = await db.query(
+      `SELECT pra.id, pra.file_name, pra.object_key, pra.client_id
+         FROM portal_request_attachments pra
+         JOIN portal_requests pr
+           ON pr.id = pra.request_id AND pr.team_id = pra.team_id
+        WHERE pra.id = $1::UUID
+          AND pra.request_id = $2::UUID
+          AND pra.team_id = $3::UUID
+        LIMIT 1`,
+      [attachmentId, requestId, staff.teamId],
+    );
+    const attachment = result.rows[0];
+    if (!attachment) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const url = await createPresignedViewUrl(
+      attachment.object_key,
+      attachment.file_name,
+      300,
+    );
+    await auditPortalEvent({
+      action: "request.attachment.download.authorized",
+      staffUserId: staff.userId,
+      teamId: staff.teamId,
+      clientId: attachment.client_id,
+      details: { requestId, attachmentId },
+      req,
+    });
+    return res.send(new ServerResponse(true, { url, expires_in: 300 }));
+  }
+
+  public static async deleteAttachment(
+    req: IWorkLenzRequest,
+    res: Response,
+  ): Promise<Response> {
+    const staff = staffActor(req);
+    const requestId = String(req.params.id || "");
+    const attachmentId = String(req.params.attachmentId || "");
+    if (!UUID_PATTERN.test(requestId) || !UUID_PATTERN.test(attachmentId)) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    const attachment = await db.query(
+      `SELECT object_key, client_id
+         FROM portal_request_attachments
+        WHERE id = $1::UUID
+          AND request_id = $2::UUID
+          AND team_id = $3::UUID`,
+      [attachmentId, requestId, staff.teamId],
+    );
+    if (!attachment.rowCount) {
+      return res
+        .status(404)
+        .send(new ServerResponse(false, null, "Attachment not found"));
+    }
+    if (!(await deleteObject(attachment.rows[0].object_key))) {
+      return res
+        .status(503)
+        .send(
+          new ServerResponse(
+            false,
+            null,
+            "Attachment storage is temporarily unavailable",
+          ),
+        );
+    }
+    const deleted = await db.query(
+      `DELETE FROM portal_request_attachments
+        WHERE id = $1::UUID
+          AND request_id = $2::UUID
+          AND team_id = $3::UUID
+        RETURNING id`,
+      [attachmentId, requestId, staff.teamId],
+    );
+    if (!deleted.rowCount) {
+      return res
+        .status(409)
+        .send(
+          new ServerResponse(false, null, "Attachment changed during deletion"),
+        );
+    }
+    await auditPortalEvent({
+      action: "request.attachment.deleted",
+      staffUserId: staff.userId,
+      teamId: staff.teamId,
+      clientId: attachment.rows[0].client_id,
+      details: { requestId, attachmentId },
+      req,
+    });
+    return res.send(
+      new ServerResponse(true, { id: attachmentId }, "Attachment deleted"),
+    );
   }
 }

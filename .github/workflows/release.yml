@@ -10,6 +10,17 @@ permissions:
   packages: write
 
 jobs:
+  clamav:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Scan digest-pinned ClamAV image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: docker.io/clamav/clamav@sha256:7f5389ccaa2368c383fa80e167ccfe44348d71e685f926fce4755eed1757673a
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
   images:
     runs-on: ubuntu-24.04
     strategy:

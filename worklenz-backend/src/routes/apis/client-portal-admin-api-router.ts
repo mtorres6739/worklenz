@@ -4,6 +4,8 @@ import ClientPortalAdminController from "../../controllers/client-portal-admin-c
 import ClientPortalServicesRequestsAdminController from "../../controllers/client-portal-services-requests-admin-controller";
 import { requireSelfHostedCapability } from "../../middlewares/validators/self-hosted-capability-validator";
 import teamOwnerOrAdminValidator from "../../middlewares/validators/team-owner-or-admin-validator";
+import portalRequestAttachmentUpload from "../../middlewares/portal-request-attachment-upload";
+import { portalRequestAttachmentLimiter } from "../../middlewares/client-portal-request-rate-limiters";
 import safeControllerFunction from "../../shared/safe-controller-function";
 
 const router = express.Router();
@@ -162,6 +164,36 @@ router.post(
   requireSelfHostedCapability("clientPortalRequests"),
   safeControllerFunction(
     ClientPortalServicesRequestsAdminController.addComment,
+  ),
+);
+router.get(
+  "/requests/:id/attachments",
+  requireSelfHostedCapability("clientPortalRequests"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsAdminController.attachments,
+  ),
+);
+router.post(
+  "/requests/:id/attachments",
+  requireSelfHostedCapability("clientPortalRequests"),
+  portalRequestAttachmentLimiter,
+  portalRequestAttachmentUpload,
+  safeControllerFunction(
+    ClientPortalServicesRequestsAdminController.uploadAttachment,
+  ),
+);
+router.get(
+  "/requests/:id/attachments/:attachmentId/download",
+  requireSelfHostedCapability("clientPortalRequests"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsAdminController.downloadAttachment,
+  ),
+);
+router.delete(
+  "/requests/:id/attachments/:attachmentId",
+  requireSelfHostedCapability("clientPortalRequests"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsAdminController.deleteAttachment,
   ),
 );
 

@@ -261,6 +261,66 @@ async function seed() {
        RETURNING id`,
       [`portal-${side.toLowerCase()}-private.pdf`, projectId, teamId, userId],
     );
+    const service = await db.query(
+      `INSERT INTO portal_services
+         (team_id, created_by, name, description, service_key, status,
+          service_data, is_public)
+       VALUES ($1::UUID, $2::UUID, $3, $4, $5, 'active', $6::JSONB, FALSE)
+       RETURNING id`,
+      [
+        teamId,
+        userId,
+        `Portal ${side} private service`,
+        `Only Client ${side} may see this service`,
+        `PI${side}${String(Date.now()).slice(-4)}${Math.floor(Math.random() * 99)}`.slice(0, 8),
+        JSON.stringify({
+          request_form: [
+            { question: "Summary", type: "text", required: true },
+          ],
+        }),
+      ],
+    );
+    await db.query(
+      `INSERT INTO portal_service_clients (service_id, team_id, client_id)
+       VALUES ($1::UUID, $2::UUID, $3::UUID)`,
+      [service.rows[0].id, teamId, clientId],
+    );
+    const portalRequest = await db.query(
+      `INSERT INTO portal_requests
+         (request_no, team_id, client_id, service_id,
+          submitted_by_membership_id, request_data)
+       VALUES ($1, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6::JSONB)
+       RETURNING id`,
+      [
+        `PI${side}-${runId}`,
+        teamId,
+        clientId,
+        service.rows[0].id,
+        membership.rows[0].id,
+        JSON.stringify({
+          title: `Portal ${side} private request`,
+          questionAnswers: [
+            { question: "Summary", type: "text", answer: `Client ${side}` },
+          ],
+        }),
+      ],
+    );
+    const requestAttachment = await db.query(
+      `INSERT INTO portal_request_attachments
+         (request_id, team_id, client_id, membership_id, sender_type,
+          object_key, file_name, mime_type, size)
+       VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, 'client',
+               $5, $6, 'application/pdf', 128)
+       RETURNING id`,
+      [
+        portalRequest.rows[0].id,
+        teamId,
+        clientId,
+        membership.rows[0].id,
+        `isolation/${runId}/${side.toLowerCase()}.pdf`,
+        `portal-${side.toLowerCase()}-request.pdf`,
+      ],
+    );
     return {
       side,
       email,
@@ -272,6 +332,9 @@ async function seed() {
       projectId,
       taskId: task.rows[0].id,
       fileId: file.rows[0].id,
+      serviceId: service.rows[0].id,
+      requestId: portalRequest.rows[0].id,
+      requestAttachmentId: requestAttachment.rows[0].id,
     };
   }
 
@@ -320,6 +383,8 @@ async function run() {
   const b = await login(fixture.b.email);
   invariant(a.body.active.client_id === fixture.a.clientId, "Client A received the wrong tenant membership");
   invariant(b.body.active.client_id === fixture.b.clientId, "Client B received the wrong tenant membership");
+  invariant(a.body.capabilities.services === true, "Client A session did not enable Services");
+  invariant(a.body.capabilities.requests === true, "Client A session did not enable Requests");
 
   const aProjects = expectStatus(
     await request("/api/client-portal/projects", { cookie: a.cookie }),
@@ -415,6 +480,96 @@ async function run() {
     "Client B disabled file access",
   );
 
+  const aServices = expectStatus(
+    await request("/api/client-portal/services", { cookie: a.cookie }),
+    200,
+    "Client A services",
+  );
+  invariant(
+    aServices.body.total === 1 &&
+      aServices.body.services[0].id === fixture.a.serviceId,
+    "Client A service list leaked a foreign private service",
+  );
+  expectStatus(
+    await request(`/api/client-portal/services/${fixture.b.serviceId}`, {
+      cookie: a.cookie,
+    }),
+    404,
+    "Client A foreign service",
+  );
+
+  const aRequests = expectStatus(
+    await request("/api/client-portal/requests", { cookie: a.cookie }),
+    200,
+    "Client A requests",
+  );
+  invariant(
+    aRequests.body.total === 1 &&
+      aRequests.body.requests[0].id === fixture.a.requestId,
+    "Client A request list leaked a foreign request",
+  );
+  expectStatus(
+    await request(`/api/client-portal/requests/${fixture.b.requestId}`, {
+      cookie: a.cookie,
+    }),
+    404,
+    "Client A foreign request",
+  );
+
+  const aRequestAttachments = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments`,
+      { cookie: a.cookie },
+    ),
+    200,
+    "Client A request attachments",
+  );
+  invariant(
+    aRequestAttachments.body.total === 1 &&
+      aRequestAttachments.body.attachments[0].id ===
+        fixture.a.requestAttachmentId,
+    "Client A request attachment list leaked data",
+  );
+  invariant(
+    !Object.prototype.hasOwnProperty.call(
+      aRequestAttachments.body.attachments[0],
+      "object_key",
+    ),
+    "Client attachment metadata exposed its private object key",
+  );
+  const requestSigned = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments/${fixture.a.requestAttachmentId}/download`,
+      { cookie: a.cookie },
+    ),
+    200,
+    "Client A request attachment download",
+  );
+  invariant(
+    requestSigned.body.expires_in === 300,
+    "request attachment URL is not limited to five minutes",
+  );
+  expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.b.requestId}/attachments/${fixture.b.requestAttachmentId}/download`,
+      { cookie: a.cookie },
+    ),
+    404,
+    "Client A foreign request attachment download",
+  );
+  expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments`,
+      {
+        method: "POST",
+        cookie: b.cookie,
+        csrf: b.csrf,
+      },
+    ),
+    403,
+    "read-only Client B request attachment upload",
+  );
+
   const socketA = new PortalSocket(a.cookie);
   const socketB = new PortalSocket(b.cookie);
   const readyA = await socketA.connect();
@@ -452,7 +607,7 @@ async function run() {
   );
   invariant(audit.rows[0].count >= 4, "portal security activity was not recorded in the audit log");
 
-  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, audit, Socket.IO rooms, and logout revocation.");
+  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, services, requests, request attachments, audit, Socket.IO rooms, and logout revocation.");
 }
 
 run()

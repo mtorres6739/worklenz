@@ -59,7 +59,11 @@ image variables so only the requested commit SHA can select production images.
 
 The gateway joins both the non-internal `edge` network and the private `app` network.
 Docker does not publish host ports for a container attached only to an internal network.
-Backend, PostgreSQL, and Redis remain unexposed; only the gateway joins `edge`.
+Backend, PostgreSQL, Redis, and ClamAV remain unexposed; only the gateway joins `edge`.
+ClamAV runs from the reviewed digest in `CLAMAV_IMAGE`, persists definitions in
+`clamav_data`, and must be healthy before the backend starts. Production request
+attachments must set `PORTAL_ATTACHMENT_SCAN_MODE=clamav`; the backend fails closed if
+the scanner is absent or unavailable.
 
 The frontend runtime injects `VITE_API_URL` from `APP_ORIGIN`. Do not leave it empty:
 the upstream hostname fallback prepends `api.` and would send authentication requests
@@ -178,14 +182,15 @@ REDIS_IMAGE='redis@sha256:reviewed-digest' /srv/worklenz/scripts/deploy.sh <40-c
 ```
 
 `REDIS_IMAGE` is required for the first deployment and for an intentional Redis
-upgrade. Later deployments reuse the reviewed digest stored in `.release.env`, so
-operators do not need to re-enter infrastructure metadata for every application
-release.
+upgrade. `CLAMAV_IMAGE` defaults to the reviewed digest in the deployer and is then
+preserved in `.release.env`; supply it explicitly only for a reviewed scanner upgrade.
+The release workflow vulnerability-scans that exact ClamAV digest independently from
+the four fork-built images.
 
 The deployer takes an encrypted pre-deploy backup, pulls immutable images, runs the
-reviewed migration job once, starts the stack, and verifies `/public/health`. A failed
-health check restores the previous application images but never pretends to reverse
-an incompatible schema migration.
+reviewed migration job once, starts the stack, verifies ClamAV health, and then verifies
+`/public/health`. A failed health check restores the previous application images but
+never pretends to reverse an incompatible schema migration.
 
 For a release smoke test, securely pipe the initial owner's email and password as two
 stdin lines to `/srv/worklenz/scripts/smoke-functional.sh`. The script authenticates,

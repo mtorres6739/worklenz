@@ -13,9 +13,11 @@ import {
   loginLimiter,
 } from "../middlewares/auth-rate-limiters";
 import {
+  portalRequestAttachmentLimiter,
   portalRequestCommentLimiter,
   portalRequestCreateLimiter,
 } from "../middlewares/client-portal-request-rate-limiters";
+import portalRequestAttachmentUpload from "../middlewares/portal-request-attachment-upload";
 import {
   resetPasswordLimiter,
   updatePasswordLimiter,
@@ -123,6 +125,36 @@ router.post(
   requireClientCommentAccess,
   portalRequestCommentLimiter,
   safeControllerFunction(ClientPortalServicesRequestsController.addComment),
+);
+router.get(
+  "/requests/:id/attachments",
+  requireSelfHostedCapability("clientPortalRequests"),
+  safeControllerFunction(ClientPortalServicesRequestsController.attachments),
+);
+router.post(
+  "/requests/:id/attachments",
+  requireSelfHostedCapability("clientPortalRequests"),
+  requireClientCommentAccess,
+  portalRequestAttachmentLimiter,
+  portalRequestAttachmentUpload,
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.uploadAttachment,
+  ),
+);
+router.get(
+  "/requests/:id/attachments/:attachmentId/download",
+  requireSelfHostedCapability("clientPortalRequests"),
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.downloadAttachment,
+  ),
+);
+router.delete(
+  "/requests/:id/attachments/:attachmentId",
+  requireSelfHostedCapability("clientPortalRequests"),
+  requireClientCommentAccess,
+  safeControllerFunction(
+    ClientPortalServicesRequestsController.deleteAttachment,
+  ),
 );
 
 router.get(

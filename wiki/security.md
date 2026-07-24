@@ -12,6 +12,9 @@
 - PostgreSQL request filtering permits Worklenz hex colors and inspects request objects
   with null prototypes; both paths have regression coverage.
 - File lists and downloads use project/task authorization and short-lived signed URLs.
+- Portal request attachments validate extension, MIME, and file signatures, then stream
+  through private ClamAV before storage. Scanner errors fail closed; authorized
+  downloads use five-minute signed URLs and never return private object keys.
 - The service worker caches only same-origin static assets. Authentication, API, CSRF,
   health, webhook, and socket responses bypass browser caches so authenticated data
   cannot survive logout or be replayed to another user. Protected manifest and static
@@ -69,5 +72,8 @@ Client Portal identities are separate from staff users and receive only explicit
 tenant-scoped project grants. They never become staff owners, admins, team leads, or
 project managers. The released collaboration routes cover project/task reads,
 client-visible comments, project/task files, signed downloads, and isolated real-time
-rooms. Wave 5 requests, invoices, payments, services, chat, and broader portal reports
-remain unrouted until their own authorization and isolation gates pass.
+rooms. Wave 5 Services and Requests, including private request attachments, are
+implemented behind disabled capabilities and remain inaccessible until the
+restore-clone plus production upload/malware gates pass. Invoices, payments, chat, and
+broader portal reports remain unrouted until their own authorization and isolation
+gates pass.

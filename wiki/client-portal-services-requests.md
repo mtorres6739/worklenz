@@ -10,8 +10,8 @@ backend capability response is authoritative, the staff and client navigation hi
 disabled areas, and direct disabled routes return 404. Keep both new flags false in
 production until the restore-clone and full Client A/Client B browser gates pass.
 
-Invoices, payments, chat, and request attachment delivery are not part of these flags.
-Their database/API/UI work must receive separate capabilities and isolation gates.
+Invoices, payments, and chat are not part of these flags. Their database/API/UI work
+must receive separate capabilities and isolation gates.
 
 ## Data and isolation model
 
@@ -44,19 +44,42 @@ Implemented behind disabled flags:
 - client request submission/list/detail;
 - staff request list/detail/status/assignment;
 - two-way request comments and portal audit events;
+- private staff/client request attachments with tenant-scoped metadata;
+- allowlisted extension, MIME, and file-signature validation;
+- fail-closed ClamAV streaming before private object-storage upload;
+- five-minute authorization-checked download URLs and uploader-scoped client deletion;
 - staff and client routes using the existing Worklenz design system; and
-- tenant/client database and query isolation checks.
+- tenant/client database and query isolation checks, including foreign attachment
+  denial.
 
 Not yet releasable:
 
-- request attachment upload/download endpoints and private signed downloads;
-- attachment malware/type/content validation for this specific workflow;
 - request notifications and real-time events;
-- isolated production-restore API/browser rehearsal; and
+- exact-image clean upload and EICAR rejection through the production API;
+- isolated production-restore API/browser rehearsal of the candidate image; and
 - production enablement.
 
-The client UI explains that secure request attachments are unavailable rather than
-embedding base64 data or exposing an object-storage key.
+The UI uploads one file at a time only after a request has a scoped ID. It never embeds
+base64 data, accepts client-supplied object references, or exposes object-storage keys.
+Required attachment-form questions are therefore fulfilled from the request detail
+screen rather than in the initial JSON request payload.
+
+## Attachment release controls
+
+- `PORTAL_REQUEST_ATTACHMENT_MAX_BYTES` defaults to 20 MB and cannot exceed the
+  deployment-wide upload limit.
+- Production must set `PORTAL_ATTACHMENT_SCAN_MODE=clamav`, `CLAMAV_HOST=clamav`,
+  `CLAMAV_PORT=3310`, and an explicit scan timeout.
+- The ClamAV image is digest-pinned, runs only on the private data network, publishes no
+  host port, and must be healthy before the backend starts.
+- A scanner timeout, protocol error, or unavailable daemon returns 503 and stores
+  nothing. A malware result returns a generic blocked response and records an audit
+  event without persisting the signature or file bytes.
+- Allowed files are PDF, common raster images, Office documents, text, and CSV. Active
+  SVG/XML, archives, executables, scripts, and extension/MIME/signature mismatches are
+  rejected before scanning.
+- Object keys include environment, team, client, request, and random attachment ID.
+  Download authorization is reevaluated before every five-minute signed URL.
 
 ## Validation and release procedure
 
@@ -67,11 +90,15 @@ embedding base64 data or exposing an object-storage key.
    assert all six Wave 5 tables and composite constraints.
 4. Run `infra/production/scripts/rehearse-migration.sh` for the Wave 5 migration against
    the newest encrypted production restore.
-5. Add attachment authorization endpoints and extend the restore-clone Client A/Client
-   B gate across services, requests, comments, attachments, search, and Socket.IO.
-6. Deploy an immutable SHA with both flags false.
-7. Enable Services for the internal workspace, test, then enable Requests and repeat.
-8. Remove disposable fixtures, confirm audit records and backups, and only then consider
+5. Start the exact digest-pinned scanner on the candidate host and prove a clean scan
+   plus EICAR detection.
+6. Extend the restore-clone Client A/Client B gate across services, requests, comments,
+   attachment metadata/download authorization, search, and Socket.IO.
+7. Deploy an immutable SHA with both flags false.
+8. Upload a real allowlisted file through the production API, download it through the
+   signed URL, delete it, and verify EICAR is blocked without an object or metadata row.
+9. Enable Services for the internal workspace, test, then enable Requests and repeat.
+10. Remove disposable fixtures, confirm audit records and backups, and only then consider
    the designated client pilot.
 
 Local foundation validation on 2026-07-24 passed backend CE typecheck, targeted security

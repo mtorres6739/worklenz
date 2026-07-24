@@ -71,8 +71,13 @@ for _ in {1..30}; do
   sleep 2
 done
 docker exec "$database_container" psql -U isolation -d isolation -Atc "SELECT 1" | grep -qx 1
+# The database image initializes the base schema. Restore into a fresh empty
+# database so a newer backup can replace that schema without dependency-order
+# failures from pg_restore --clean.
+docker exec "$database_container" dropdb -U isolation --force isolation
+docker exec "$database_container" createdb -U isolation isolation
 docker exec -i "$database_container" pg_restore -U isolation -d isolation \
-  --clean --if-exists --no-owner --no-privileges < "$tmp_dir/backup.dump"
+  --no-owner --no-privileges < "$tmp_dir/backup.dump"
 
 # Rehearse the candidate image's complete controlled migration chain before the
 # application starts. This keeps the fixture aligned with the exact release that
@@ -88,7 +93,8 @@ docker run -d --name "$backend_container" --network "$network_name" --network-al
   --env-file .env \
   -e DB_USER=isolation -e DB_PASSWORD=isolation -e DB_HOST=portal-db -e DB_PORT=5432 -e DB_NAME=isolation \
   -e PORT=3000 -e APP_ORIGIN="$test_origin" -e SOCKET_IO_CORS="$test_origin" \
-  -e FEATURE_CLIENT_PORTAL=true -e IMPORT_WORKER_ENABLED=false \
+  -e FEATURE_CLIENT_PORTAL=true -e FEATURE_CLIENT_PORTAL_SERVICES=true \
+  -e FEATURE_CLIENT_PORTAL_REQUESTS=true -e IMPORT_WORKER_ENABLED=false \
   -e ENABLE_EMAIL_CRONJOBS=false -e ENABLE_RECURRING_JOBS=false \
   "$BACKEND_IMAGE" >/dev/null
 

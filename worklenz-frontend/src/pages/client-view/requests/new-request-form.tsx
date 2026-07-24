@@ -125,7 +125,7 @@ const NewRequestForm = () => {
                 <Alert
                   type="info"
                   showIcon
-                  message="Secure request attachments are not enabled yet. Add a note and your project manager will provide an upload link."
+                  message="Submit the request first, then upload this file from the secure attachments section on the request page."
                 />
               ) : (
                 <Input.TextArea rows={3} maxLength={3000} />

@@ -22,6 +22,18 @@ if [[ ! "$redis_image" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
+clamav_image="${CLAMAV_IMAGE:-}"
+if [[ -z "$clamav_image" && -f .release.env ]]; then
+  clamav_image="$(sed -n 's/^CLAMAV_IMAGE=//p' .release.env | tail -n 1)"
+fi
+if [[ -z "$clamav_image" ]]; then
+  clamav_image="docker.io/clamav/clamav@sha256:7f5389ccaa2368c383fa80e167ccfe44348d71e685f926fce4755eed1757673a"
+fi
+if [[ ! "$clamav_image" =~ ^[^[:space:]]+@sha256:[0-9a-f]{64}$ ]]; then
+  echo "CLAMAV_IMAGE must be a digest-pinned image." >&2
+  exit 1
+fi
+
 # Release image tags always come from the generated release file. Prevent a caller's
 # exported variables from silently overriding the requested commit SHA in Compose.
 unset BACKEND_IMAGE FRONTEND_IMAGE DATABASE_IMAGE GATEWAY_IMAGE RELEASE_SHA
@@ -41,6 +53,7 @@ FRONTEND_IMAGE=ghcr.io/mtorres6739/worklenz-frontend:${release_sha}
 DATABASE_IMAGE=ghcr.io/mtorres6739/worklenz-database:${release_sha}
 GATEWAY_IMAGE=ghcr.io/mtorres6739/worklenz-gateway:${release_sha}
 REDIS_IMAGE=${redis_image}
+CLAMAV_IMAGE=${clamav_image}
 RELEASE_SHA=${release_sha}
 EOF
 
@@ -63,7 +76,7 @@ if "${compose[@]}" ps --status running postgres | grep -q postgres; then
 fi
 
 "${compose[@]}" pull
-"${compose[@]}" up -d postgres redis
+"${compose[@]}" up -d postgres redis clamav
 "${compose[@]}" --profile migration run --rm migrate
 if ! "${compose[@]}" up -d --remove-orphans backend frontend gateway; then
   echo "Release containers failed to start." >&2
