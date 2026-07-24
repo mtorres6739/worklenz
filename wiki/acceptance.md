@@ -171,8 +171,30 @@ Remaining gates before the designated external client:
 
 Nonblocking internal-pilot UX follow-ups:
 
-- the client table can briefly retain a stale Active badge after deactivation even
-  though the database, session, and authorization state are already inactive;
-- the admin-center branding request still returns 404; and
-- the project page can still show a capability alert even though the underlying
-  self-hosted feature is available.
+- the admin-center branding request still returns 404.
+
+### Wave 4 acceptance follow-up: 2026-07-24
+
+- Deployed immutable SHA:
+  `269676148b6a55430c375d131bfcc35b32fea8da`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/30099921288>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/30099921253>.
+- The client list now derives effective portal access from the client, portal, and
+  membership states. A guarded production fixture confirmed that an inactive client
+  with a stale active membership is returned as `inactive`, with portal access false;
+  the fixture was then removed.
+- Self-hosted project finance, budget, task-restriction, and integration surfaces now
+  use explicit capabilities. A production hard refresh confirmed that the stale
+  capability alert is gone and Slack remains absent until its capability is released.
+- An actual 51-byte text attachment was uploaded through the production Files UI.
+  Worklenz reported success, listed the private object, and reported the correct storage
+  total. The file was deleted through the same UI; the UI returned to zero files, the
+  database row was absent, and the exact R2 object prefix returned no match.
+- The final disposable upload project and all other acceptance fixtures were removed.
+- The deployer created encrypted pre-deploy and daily backups, all containers passed
+  health checks on the exact SHA, the public health endpoint returned 200, Cloudflare
+  Access still protected the application, and direct origin access remained blocked.
+
+The production attachment gate and the two internal-pilot UX defects above are closed.
+AWS SES production access and the observation-period/client-enrollment gates remain.

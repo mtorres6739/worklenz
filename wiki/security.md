@@ -36,6 +36,24 @@ remove the known critical frontend advisory. Remaining high findings must be tri
 against reachable production code before each client rollout; an exploitable finding
 blocks release.
 
+## SES reputation remediation
+
+The new `us-west-2` production-access request was denied because a retired legacy
+sender in `us-west-1` had an unresolved high-bounce enforcement event. Account-level
+sending in `us-west-1` is now disabled and must remain disabled. Account suppression
+for both bounces and complaints is enabled in both regions.
+
+Production Worklenz email remains transactional and invitation-only. The
+`myfusionadmin.com` identity and DKIM are verified in `us-west-2`; bounce, complaint,
+and delivery notifications target the signed Worklenz SNS webhook. Test only with the
+SES simulator or verified recipients until AWS clears the legacy enforcement and grants
+production access in `us-west-2`.
+
+The remediation response was submitted to the legacy enforcement case on 2026-07-24.
+It documented retirement of the old workflow, the regional send shutdown, suppression
+controls, signed webhook handling, low-rate transactional use, and monitoring. Do not
+resubmit the `us-west-2` request until AWS confirms the old enforcement is cleared.
+
 ## Client isolation boundary
 
 Client Portal identities are separate from staff users and receive only explicit

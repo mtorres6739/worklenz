@@ -38,6 +38,12 @@ logs, or command output.
 7. Install the systemd backup and freshness-monitor units from
    `infra/production/systemd/` and enable both timers.
 
+Before each SSH administration session, compare the operator's current public address
+with the Hetzner `worklenz-production` firewall rule for TCP 22. Mobile and residential
+addresses can change. Replace only the stale SSH source with the current single-host
+`/32`; never widen SSH to the public internet and do not alter the Cloudflare-only web
+rules. Confirm SSH works before beginning a release.
+
 Ubuntu 24.04 does not provide the `awscli` package in the selected Hetzner image.
 The cloud-init baseline installs checksum-pinned AWS CLI v2 instead. The backend
 production image must retain `node-pg-migrate`; the release workflow runs an image-level
