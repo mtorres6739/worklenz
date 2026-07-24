@@ -197,3 +197,39 @@ test suites (104 tests plus one todo), the Sentry-disabled production frontend b
 the self-hosted commercial-gate inventory, high/critical production dependency gates,
 shell and JavaScript syntax checks, and a fresh PostgreSQL initialization with the
 entire migration chain applied twice.
+
+## Notification and real-time release
+
+Request notifications and explicit-room realtime events were released to the internal
+pilot on 2026-07-24 as immutable SHA
+`d5dde9770cc870f8f1a8ecc45a7d7eebda537198`.
+
+- [CI run 30124471099](https://github.com/mtorres6739/worklenz/actions/runs/30124471099)
+  passed backend CE typecheck, all backend tests, the controlled frontend tests and
+  production build, the fresh-database migration gate, dependency audits, secret scan,
+  filesystem scan, and self-hosted gate inventory.
+- [Immutable build 30124471157](https://github.com/mtorres6739/worklenz/actions/runs/30124471157)
+  built and scanned the exact backend, frontend, database, and gateway images and
+  independently scanned the pinned ClamAV image.
+- The encrypted restore rehearsal applied the candidate's complete migration chain,
+  replayed migration `2026072400050` twice, and proved that the composite constraints
+  reject cross-client notification rows.
+- The extended Client A/Client B gate passed authentication, cookies, CSRF, project and
+  file isolation, services, requests, durable notification authorization, clean
+  attachment upload/download/delete, EICAR rejection, audit events, Socket.IO room
+  isolation, and logout revocation. Client A received its request event while Client B
+  received none.
+- Deployment created
+  `postgres/pre-deploy/worklenz-20260724T203856Z.dump.age`, installed the additive
+  schema, and passed the disabled-first health, exact-image, constraint, authenticated
+  capability, branding, project, and task CRUD checks.
+- After the independent notification flag was enabled, the authenticated capability
+  response reported Requests and request notifications true, the functional smoke
+  test passed again, Cloudflare health returned 200, the application root remained
+  Access-protected, and direct origin access remained blocked.
+- The clean post-release backup is
+  `postgres/daily/worklenz-20260724T204211Z.dump.age`; backup-age monitoring passed.
+
+This enables notifications only for the protected internal pilot. The external client
+gate still requires completion of the internal observation week, explicit Cloudflare
+Access enrollment, and the designated separate-browser walkthrough.

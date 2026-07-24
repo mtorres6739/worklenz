@@ -237,6 +237,33 @@ Transactional delivery is no longer a client-pilot blocker. AWS SES remains disa
 as an optional future fallback. The observation-period and explicit Cloudflare Access
 client-enrollment gates still apply.
 
+### Request notifications and realtime: 2026-07-24
+
+- Deployed immutable SHA:
+  `d5dde9770cc870f8f1a8ecc45a7d7eebda537198`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/30124471099>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/30124471157>.
+- The newest encrypted backup was restored into isolation, the complete candidate
+  chain was applied, migration `2026072400050` was replayed twice, and cross-client
+  notification inserts were rejected by composite foreign keys.
+- The Client A/Client B API and Socket.IO gate passed durable notification
+  authorization and event isolation in addition to the existing portal, file, search,
+  CSRF, malware, audit, and logout checks.
+- Production was deployed with request notifications false, then verified by exact
+  image, schema, health, backup-age, authenticated capability, branding, project, and
+  task CRUD checks before enabling the independent flag.
+- Post-enable capability and CRUD checks passed. Cloudflare health returned 200, the
+  application root remained protected by Access, and direct origin access remained
+  blocked.
+- Encrypted backups:
+  `postgres/pre-deploy/worklenz-20260724T203856Z.dump.age` and
+  `postgres/daily/worklenz-20260724T204211Z.dump.age`.
+
+Request notifications and realtime events are released for the internal pilot. The
+external-client observation-period, Cloudflare enrollment, and separate-browser gates
+remain.
+
 ### Branding regression follow-up: 2026-07-24
 
 - The production Admin Center branding route is registered and returns 401 to an

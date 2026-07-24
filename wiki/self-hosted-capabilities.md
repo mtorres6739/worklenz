@@ -12,11 +12,11 @@ Released flags:
   Cloudflare-protected internal pilot
 - `FEATURE_CLIENT_PORTAL_SERVICES=true` for the internal pilot
 - `FEATURE_CLIENT_PORTAL_REQUESTS=true` for the internal pilot
+- `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=true` for the internal pilot
 
 Implemented but fail-closed until provider configuration and independent integration
 gates pass:
 
-- `FEATURE_CLIENT_PORTAL_REQUEST_NOTIFICATIONS=false`
 - `FEATURE_OIDC=false`
 - `FEATURE_SLACK=false`
 
@@ -61,7 +61,8 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   The exact image passed restore-clone isolation, real private
   clean-upload/download/delete, and malware rejection and is enabled for the internal
   workspace. Tenant-scoped durable request notifications and explicit-room realtime
-  events are implemented behind their own disabled release flag. External client
+  events passed their restore-clone isolation gate and are enabled behind their own
+  release flag for the internal pilot. External client
   access remains gated by the separate-browser walkthrough.
   See
   [Client Portal services and requests](client-portal-services-requests.md).
