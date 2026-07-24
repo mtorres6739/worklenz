@@ -16,18 +16,19 @@
   health, webhook, and socket responses bypass browser caches so authenticated data
   cannot survive logout or be replayed to another user. Protected manifest and static
   fetches include the Cloudflare Access session credential.
-- SES webhook processing requires a matching SNS topic plus a valid AWS SNS signature.
-  Its narrow parser accepts SNS `text/plain` JSON only under `/webhook/emails/*`.
+- Email delivery supports explicit Resend or SES selection. Resend webhooks require
+  an exact-body signature, and provider event IDs are deduplicated in PostgreSQL. SES
+  webhook processing requires a matching SNS topic plus a valid AWS SNS signature.
 - Sentry source-map upload is fail-closed unless `SENTRY_UPLOAD_SOURCEMAPS=true` is
   intentionally set with complete release credentials.
 
 ## Credential separation
 
 Generate Worklenz-only database, Redis, session, cookie, JWT, encryption, backup, R2,
-and SES secrets. Use separate bucket-scoped R2 credentials for attachments and backups,
-and keep the R2 infrastructure token off the server. Keep `/srv/worklenz/.env` at mode
-`0600`. Never expose secrets through frontend variables, logs, wiki files, or GitHub
-source.
+Resend, and optional SES secrets. Use separate bucket-scoped R2 credentials for
+attachments and backups, and keep the R2 infrastructure token off the server. Keep
+`/srv/worklenz/.env` at mode `0600`. Never expose secrets through frontend variables,
+logs, wiki files, or GitHub source.
 
 ## Dependency policy
 
@@ -53,6 +54,14 @@ The remediation response was submitted to the legacy enforcement case on 2026-07
 It documented retirement of the old workflow, the regional send shutdown, suppression
 controls, signed webhook handling, low-rate transactional use, and monitoring. Do not
 resubmit the `us-west-2` request until AWS confirms the old enforcement is cleared.
+
+## Resend cutover
+
+The fork now has a provider-aware sender and signed Resend webhook path. Production
+uses the dedicated `Worklenz` Resend team and
+`notifications.myfusionadmin.com` once the paid team, domain DNS, domain-scoped key,
+and webhook are active. SES remains disabled fallback configuration; Resend is not an
+automatic failover for AWS and AWS is not an automatic failover for Resend.
 
 ## Client isolation boundary
 

@@ -8,7 +8,8 @@
 - A least-privilege Cloudflare token with DNS, Zone Settings, and Access edit rights
   for `myfusionadmin.com`.
 - GitHub package read access on the server and package write access in CI.
-- SES credentials limited to sending and the verified `myfusionadmin.com` identity.
+- A dedicated Resend team with a sending-only, domain-scoped API key and signed
+  webhook secret. SES credentials are optional fallback material only.
 
 Read credentials from the secret environment by variable name. Do not copy unrelated
 global credentials into `/srv/worklenz/.env`.
@@ -134,9 +135,9 @@ project files and task attachments. Rehearse this migration twice and then run
 image before changing the portal release flag.
 
 Cloudflare Access protects the hostname during the pilot. Only the exact
-`/public/health` and signed `/webhook/emails/events` paths use separate bypass
-applications; application authorization and SNS signature verification still apply at
-the origin.
+`/public/health`, signed `/webhook/emails/events`, and signed
+`/webhook/emails/resend` paths use separate bypass applications. Provider signature
+verification still applies at the origin.
 
 Google and Apple authentication require matching backend feature flags
 (`ENABLE_GOOGLE_LOGIN` or `ENABLE_APPLE_LOGIN`) plus the complete provider credential
@@ -147,6 +148,8 @@ construct or register disabled Passport strategies, and disabled provider routes
 Amazon SNS posts its signed JSON envelope as `text/plain`. Only the
 `/webhook/emails/*` route family accepts that content type; the matching topic ARN and
 AWS signature are still verified before subscription confirmation or event handling.
+Resend verification uses the exact raw `application/json` body before global JSON
+parsing. Its signing secret and event ID protect against forgery and replay.
 
 On the fixed-network Hetzner host, mask `cloud-init-hotplugd.socket` and its service.
 Ubuntu otherwise treats Docker virtual Ethernet interfaces as cloud network hot-plugs

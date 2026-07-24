@@ -21,11 +21,12 @@ authenticated application at `https://projects.myfusionadmin.com`.
 - Attachments and encrypted backups use separate private Cloudflare R2 buckets placed
   near the Ashburn origin. Objects are never anonymously readable. Backup prefixes use
   lifecycle retention plus bucket locks; application uploads use unique object keys.
-- SES credentials are independent of storage credentials.
+- Email-provider credentials are independent of storage credentials.
 
 ## Runbooks
 
 - [Deployment](deployment.md)
+- [Transactional email delivery](email-delivery.md)
 - [Security](security.md)
 - [Upgrade and rollback](upgrade.md)
 - [Backup and restore](backup-restore.md)

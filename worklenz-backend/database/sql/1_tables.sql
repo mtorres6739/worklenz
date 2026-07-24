@@ -1844,6 +1844,7 @@ CREATE TABLE IF NOT EXISTS email_logs (
     email         TEXT                                                NOT NULL,
     subject       TEXT                                                NOT NULL,
     html          TEXT                                                NOT NULL,
+    provider      TEXT                     DEFAULT 'ses'               NOT NULL,
     status        TEXT                     DEFAULT 'pending'           NOT NULL,
     message_id    TEXT,
     error_details TEXT,
@@ -1859,11 +1860,14 @@ CREATE INDEX IF NOT EXISTS idx_email_logs_status ON email_logs(status);
 CREATE INDEX IF NOT EXISTS idx_email_logs_message_id ON email_logs(message_id);
 CREATE INDEX IF NOT EXISTS idx_email_logs_email_status ON email_logs(email, status);
 CREATE INDEX IF NOT EXISTS idx_email_logs_created_at ON email_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_email_logs_provider ON email_logs(provider);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_email_logs_message_id_unique
     ON email_logs(message_id) WHERE message_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS email_delivery_events (
     id              UUID                     DEFAULT uuid_generate_v4() NOT NULL,
+    provider        TEXT                     DEFAULT 'ses'               NOT NULL,
+    provider_event_id TEXT,
     message_id      TEXT                                                NOT NULL,
     event_type      TEXT                                                NOT NULL,
     recipient_email TEXT                                                NOT NULL,
@@ -1881,6 +1885,11 @@ CREATE INDEX IF NOT EXISTS idx_email_delivery_events_type
     ON email_delivery_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_email_delivery_events_timestamp
     ON email_delivery_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_email_delivery_events_provider
+    ON email_delivery_events(provider);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_delivery_events_provider_event_recipient
+    ON email_delivery_events(provider, provider_event_id, recipient_email)
+    WHERE provider_event_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION update_email_log_status()
 RETURNS TRIGGER AS $$

@@ -31,8 +31,19 @@ import YAML from "yamljs";
 import verifySnsMessage from "./middlewares/verify-sns-message";
 import { getJsonUploadBodyLimitBytes } from "./shared/self-hosted-capabilities";
 import slackWebhookRouter from "./routes/slack-webhook-router";
+import ResendWebhookController from "./controllers/resend-webhook-controller";
 
 const app = express();
+
+// Resend signs the exact request bytes. This route must be mounted before the
+// JSON parser scoped to /webhook/emails.
+app.post(
+  "/webhook/emails/resend",
+  express.text({ type: "application/json", limit: "1mb" }),
+  (req, res, next) => {
+    ResendWebhookController.handle(req, res).catch(next);
+  },
+);
 
 if (process.env.IMPORT_WORKER_ENABLED !== "false") {
   importWorker.start();

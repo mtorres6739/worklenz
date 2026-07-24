@@ -34,6 +34,8 @@ service names only. It must never contain credential values.
 
 ## Email
 
+- `worklenz-resend-api-key`
+- `worklenz-resend-webhook-secret`
 - `worklenz-ses-access-key-id`
 - `worklenz-ses-secret-access-key`
 - `worklenz-ses-sns-topic-arn`

@@ -90,27 +90,47 @@ else
     -d "$health_policy_payload" | jq -e '.success' >/dev/null
 fi
 
-webhook_domain="${hostname}/webhook/emails/events"
-webhook_app_id="$(curl -fsS "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
-  | jq -r --arg domain "$webhook_domain" '.result[] | select(.domain == $domain) | .id' | head -n1)"
-if [[ -z "$webhook_app_id" ]]; then
-  webhook_app_id="$(curl -fsS -X POST "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
-    -d "$(jq -n --arg domain "$webhook_domain" '{name:"Worklenz signed SES webhook",domain:$domain,type:"self_hosted",session_duration:"24h"}')" \
-    | jq -r '.result.id')"
-fi
+configure_webhook_bypass() {
+  local route="$1"
+  local app_name="$2"
+  local policy_name="$3"
+  local webhook_domain="${hostname}${route}"
+  local webhook_app_id
+  local webhook_policy_id
+  local webhook_policy_payload
 
-webhook_policy_id="$(curl -fsS "${headers[@]}" \
-  "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies" \
-  | jq -r '.result[] | select(.name == "Signed SNS bypass") | .id' | head -n1)"
-webhook_policy_payload='{"name":"Signed SNS bypass","decision":"bypass","precedence":1,"include":[{"everyone":{}}],"exclude":[],"require":[]}'
-if [[ -n "$webhook_policy_id" ]]; then
-  curl -fsS -X PUT "${headers[@]}" \
-    "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies/${webhook_policy_id}" \
-    -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
-else
-  curl -fsS -X POST "${headers[@]}" \
+  webhook_app_id="$(curl -fsS "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+    | jq -r --arg domain "$webhook_domain" '.result[] | select(.domain == $domain) | .id' | head -n1)"
+  if [[ -z "$webhook_app_id" ]]; then
+    webhook_app_id="$(curl -fsS -X POST "${headers[@]}" "${api}/accounts/${CF_ACCOUNT_ID}/access/apps" \
+      -d "$(jq -n --arg name "$app_name" --arg domain "$webhook_domain" \
+        '{name:$name,domain:$domain,type:"self_hosted",session_duration:"24h"}')" \
+      | jq -r '.result.id')"
+  fi
+
+  webhook_policy_id="$(curl -fsS "${headers[@]}" \
     "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies" \
-    -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
-fi
+    | jq -r --arg name "$policy_name" '.result[] | select(.name == $name) | .id' | head -n1)"
+  webhook_policy_payload="$(jq -n --arg name "$policy_name" \
+    '{name:$name,decision:"bypass",precedence:1,include:[{everyone:{}}],exclude:[],require:[]}')"
+  if [[ -n "$webhook_policy_id" ]]; then
+    curl -fsS -X PUT "${headers[@]}" \
+      "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies/${webhook_policy_id}" \
+      -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
+  else
+    curl -fsS -X POST "${headers[@]}" \
+      "${api}/accounts/${CF_ACCOUNT_ID}/access/apps/${webhook_app_id}/policies" \
+      -d "$webhook_policy_payload" | jq -e '.success' >/dev/null
+  fi
+}
+
+configure_webhook_bypass \
+  "/webhook/emails/events" \
+  "Worklenz signed SES webhook" \
+  "Signed SNS bypass"
+configure_webhook_bypass \
+  "/webhook/emails/resend" \
+  "Worklenz signed Resend webhook" \
+  "Signed Resend bypass"
 
 echo "Cloudflare DNS, Full Strict TLS settings, internal Access, and exact health/webhook bypasses are configured."

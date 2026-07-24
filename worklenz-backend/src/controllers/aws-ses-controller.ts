@@ -4,10 +4,14 @@ import {ServerResponse} from "../models/server-response";
 import WorklenzControllerBase from "./worklenz-controller-base";
 import HandleExceptions from "../decorators/handle-exceptions";
 import {ISESBouncedMessage} from "../interfaces/aws-bounced-email-response";
-import db from "../config/db";
 import {ISESComplaintMessage} from "../interfaces/aws-complaint-email-response";
 import {ISESWebhookMessage, ISESDeliveryMessage, ISESSendMessage, ISESRejectMessage} from "../interfaces/aws-delivery-response";
 import {log_error} from "../shared/utils";
+import {
+  recordEmailDeliveryEvent,
+  suppressBouncedEmails,
+  suppressComplainedEmails,
+} from "../shared/email-delivery-events";
 
 export default class AwsSesController extends WorklenzControllerBase {
   @HandleExceptions()
@@ -52,13 +56,13 @@ export default class AwsSesController extends WorklenzControllerBase {
 
     switch (message.notificationType) {
       case 'Send':
-        await this.recordDeliveryEvent(messageId, 'send', recipients, timestamp, null);
+        await recordEmailDeliveryEvent('ses', messageId, 'send', recipients, timestamp, null);
         break;
 
       case 'Delivery':
         const deliveryMessage = message as ISESDeliveryMessage;
         const deliveryTimestamp = new Date(deliveryMessage.delivery.timestamp);
-        await this.recordDeliveryEvent(messageId, 'delivery', deliveryMessage.delivery.recipients, deliveryTimestamp, {
+        await recordEmailDeliveryEvent('ses', messageId, 'delivery', deliveryMessage.delivery.recipients, deliveryTimestamp, {
           smtpResponse: deliveryMessage.delivery.smtpResponse,
           processingTimeMillis: deliveryMessage.delivery.processingTimeMillis
         });
@@ -66,7 +70,7 @@ export default class AwsSesController extends WorklenzControllerBase {
 
       case 'Reject':
         const rejectMessage = message as ISESRejectMessage;
-        await this.recordDeliveryEvent(messageId, 'reject', recipients, timestamp, {
+        await recordEmailDeliveryEvent('ses', messageId, 'reject', recipients, timestamp, {
           reason: rejectMessage.reject.reason
         });
         break;
@@ -84,44 +88,12 @@ export default class AwsSesController extends WorklenzControllerBase {
   private static async processBounce(message: ISESBouncedMessage): Promise<void> {
     if (message.notificationType !== "Bounce" || message.bounce.bounceType !== "Permanent") return;
     const emails = Array.from(new Set(message.bounce.bouncedRecipients.map(r => r.emailAddress)));
-    for (const email of emails) {
-      await db.query(`
-        INSERT INTO bounced_emails (email)
-        VALUES ($1)
-        ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
-      `, [email]);
-    }
+    await suppressBouncedEmails(emails);
   }
 
   private static async processComplaint(message: ISESComplaintMessage): Promise<void> {
     if (message.notificationType !== "Complaint") return;
     const emails = Array.from(new Set(message.complaint.complainedRecipients.map(r => r.emailAddress)));
-    for (const email of emails) {
-      await db.query(`
-        INSERT INTO spam_emails (email)
-        VALUES ($1)
-        ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP;
-      `, [email]);
-    }
-  }
-
-  private static async recordDeliveryEvent(
-    messageId: string,
-    eventType: string,
-    recipients: string[],
-    timestamp: Date,
-    details: any
-  ): Promise<void> {
-    try {
-      for (const recipient of recipients) {
-        const q = `
-          INSERT INTO email_delivery_events (message_id, event_type, recipient_email, timestamp, details)
-          VALUES ($1, $2, $3, $4, $5);
-        `;
-        await db.query(q, [messageId, eventType, recipient, timestamp, details ? JSON.stringify(details) : null]);
-      }
-    } catch (error) {
-      log_error(error);
-    }
+    await suppressComplainedEmails(emails);
   }
 }

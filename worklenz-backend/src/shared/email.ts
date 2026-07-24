@@ -1,6 +1,7 @@
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 import { Validator } from "jsonschema";
 import { QueryResult } from "pg";
+import { Resend } from "resend";
 import { log_error, isValidateEmail } from "./utils";
 import emailRequestSchema from "../json_schemas/email-request-schema";
 import db from "../config/db";
@@ -17,6 +18,12 @@ const sesClient = new SESClient({
   region: process.env.SES_REGION || process.env.AWS_REGION,
   credentials: sesCredentials,
 });
+
+export type EmailProvider = "ses" | "resend";
+
+export function getEmailProvider(): EmailProvider {
+  return process.env.EMAIL_PROVIDER === "resend" ? "resend" : "ses";
+}
 
 export interface IEmail {
   to?: string[];
@@ -67,14 +74,15 @@ async function logEmailAttempt(
   email: string,
   subject: string,
   html: string,
+  provider: EmailProvider,
 ): Promise<string | null> {
   try {
     const q = `
-      INSERT INTO email_logs (email, subject, html, status)
-      VALUES ($1, $2, $3, 'pending')
+      INSERT INTO email_logs (email, subject, html, status, provider)
+      VALUES ($1, $2, $3, 'pending', $4)
       RETURNING id;
     `;
-    const result = await db.query(q, [email, subject, html]);
+    const result = await db.query(q, [email, subject, html, provider]);
     return result.rows[0]?.id || null;
   } catch (error) {
     log_error(error);
@@ -145,6 +153,26 @@ function categorizeError(error: any): {
     };
   }
 
+  if (error.name === "rate_limit_exceeded" || error.statusCode === 429) {
+    return {
+      code: "RATE_LIMITED",
+      message: "Email provider rate limit exceeded",
+      details: error.message,
+    };
+  }
+
+  if (
+    error.name === "validation_error" ||
+    error.name === "invalid_from_address" ||
+    error.statusCode === 422
+  ) {
+    return {
+      code: "INVALID_EMAIL",
+      message: "Email provider rejected the message parameters",
+      details: error.message,
+    };
+  }
+
   return {
     code: "UNKNOWN_ERROR",
     message: error.message || "Unknown error occurred",
@@ -173,7 +201,9 @@ export async function sendEmail(email: IEmail): Promise<string | null> {
 }
 
 export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
-  const logIds: string[] = [];
+  const attempts: Array<{ recipient: string; logId: string }> = [];
+  const sentLogIds = new Set<string>();
+  const provider = getEmailProvider();
 
   try {
     const options = { ...email } as IEmail;
@@ -223,27 +253,79 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
         recipient,
         options.subject,
         options.html,
+        provider,
       );
       if (logId) {
-        logIds.push(logId);
+        attempts.push({ recipient, logId });
       }
     }
 
-    let messageId: string | undefined;
+    if (attempts.length !== options.to.length) {
+      throw new Error("Unable to create delivery logs for every recipient");
+    }
 
-    // Send via AWS SES
-    console.log(`Sending email via SES to ${options.to.length} recipient(s).`);
-
-    const charset = "UTF-8";
-    
     // Generate plain text version by stripping HTML tags
     const plainText = options.html
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
-    
+
+    if (provider === "resend") {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        throw new Error("RESEND_API_KEY is required when EMAIL_PROVIDER=resend");
+      }
+
+      console.log(`Sending email via Resend to ${attempts.length} recipient(s).`);
+      const resend = new Resend(apiKey);
+      const messageIds: string[] = [];
+
+      for (const attempt of attempts) {
+        try {
+          const result = await resend.emails.send(
+            {
+              from:
+                options.from ||
+                process.env.EMAIL_FROM ||
+                "Worklenz <noreply@localhost>",
+              to: [attempt.recipient],
+              subject: options.subject,
+              html: options.html,
+              text: plainText,
+            },
+            { idempotencyKey: `worklenz/${attempt.logId}` },
+          );
+
+          if (result.error || !result.data?.id) {
+            throw result.error || new Error("Resend did not return a message ID");
+          }
+
+          messageIds.push(result.data.id);
+          await updateEmailLogStatus(attempt.logId, "sent", result.data.id);
+          sentLogIds.add(attempt.logId);
+        } catch (error) {
+          const categorizedError = categorizeError(error);
+          await updateEmailLogStatus(
+            attempt.logId,
+            "failed",
+            undefined,
+            JSON.stringify(categorizedError),
+          );
+          throw error;
+        }
+      }
+
+      console.log("Email accepted by Resend.");
+      return {
+        success: true,
+        messageId: messageIds[0],
+      };
+    }
+
+    console.log(`Sending email via SES to ${options.to.length} recipient(s).`);
+    const charset = "UTF-8";
     const command = new SendEmailCommand({
       Destination: {
         ToAddresses: options.to,
@@ -264,19 +346,25 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
           },
         },
       },
-      Source: options.from || process.env.EMAIL_FROM || "Worklenz <noreply@localhost>",
+      Source:
+        options.from ||
+        process.env.EMAIL_FROM ||
+        "Worklenz <noreply@localhost>",
     });
 
-    const res = await sesClient.send(command);
-    messageId = res.MessageId;
+    const result = await sesClient.send(command);
+    const messageId = result.MessageId;
     console.log("Email accepted by SES.");
 
-    // Update log status to sent
-    // Append index to messageId to make it unique per recipient when sending to multiple
-    for (let i = 0; i < logIds.length; i++) {
+    for (let i = 0; i < attempts.length; i++) {
       const uniqueMessageId =
-        logIds.length > 1 ? `${messageId}-${i}` : messageId;
-      await updateEmailLogStatus(logIds[i], "sent", uniqueMessageId);
+        attempts.length > 1 ? `${messageId}-${i}` : messageId;
+      await updateEmailLogStatus(
+        attempts[i].logId,
+        "sent",
+        uniqueMessageId,
+      );
+      sentLogIds.add(attempts[i].logId);
     }
 
     return {
@@ -288,7 +376,8 @@ export async function sendEmailEnhanced(email: IEmail): Promise<IEmailResult> {
     const categorizedError = categorizeError(e);
 
     // Update log status to failed
-    for (const logId of logIds) {
+    for (const { logId } of attempts) {
+      if (sentLogIds.has(logId)) continue;
       await updateEmailLogStatus(
         logId,
         "failed",

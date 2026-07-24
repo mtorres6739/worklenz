@@ -160,8 +160,10 @@ Still gated before the designated external client:
 
 Remaining gates before the designated external client:
 
-- AWS SES production access. Request `178455732800515` was denied, so external
-  invitation and reset delivery is not yet approved.
+- Transactional provider activation. AWS SES request `178455732800515` was denied;
+  the approved replacement is a dedicated Resend Pro team using
+  `notifications.myfusionadmin.com`. Client invitations remain blocked until its
+  domain, signed webhook, invitation, reset, and delivery-log checks pass.
 - One actual UI attachment upload after enabling Chrome extension access to local
   `file://` URLs. Restore-clone file authorization, private object access, and signed
   download tests already pass.
