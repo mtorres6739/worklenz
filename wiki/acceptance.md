@@ -201,3 +201,38 @@ Nonblocking internal-pilot UX follow-ups:
 
 The production attachment gate and the two internal-pilot UX defects above are closed.
 AWS SES production access and the observation-period/client-enrollment gates remain.
+
+### Resend production acceptance: 2026-07-24
+
+- Deployed immutable SHA:
+  `8b8ba66202c83550fb60c1e90f79f78315d4be21`.
+- CI: <https://github.com/mtorres6739/worklenz/actions/runs/30113869680>.
+- Immutable release and critical image scans:
+  <https://github.com/mtorres6739/worklenz/actions/runs/30113869692>.
+- The dedicated `Worklenz` Resend team is active on Transactional Free. The
+  `notifications.myfusionadmin.com` domain is verified, the API key is restricted to
+  that sending domain, and production sends as
+  `Worklenz <noreply@notifications.myfusionadmin.com>`.
+- Cloudflare permits only the exact signed Resend webhook path around Access. The
+  parent application still redirects to Access, an unsigned webhook returns 400, and a
+  valid replay produces one stored provider event.
+- Additive email-provider, staff-auth compatibility, and password-reset token
+  migrations passed their encrypted restore-clone rehearsals. All three migrations and
+  their required columns, tables, and indexes are present in production.
+- A direct provider smoke message, the real staff password-reset flow, and the actual
+  Worklenz team-invitation template each reached `delivered` through the signed webhook.
+  The reset test token was invalidated, and the invitation test created no membership
+  or invitation state.
+- Production runs the exact SHA for the backend, frontend, gateway, and database
+  images. Internal backend health returns 200; Cloudflare Access continues to protect
+  the public application.
+- The PostCSS production advisory was remediated at `8.5.23`. CI typechecks, tests,
+  production audits, frontend build, secret scan, and container scans passed.
+- The deployer created
+  `postgres/pre-deploy/worklenz-20260724T174335Z.dump.age`. The clean follow-up backup
+  is `postgres/daily/worklenz-20260724T174639Z.dump.age`, and the backup-age check
+  passed.
+
+Transactional delivery is no longer a client-pilot blocker. AWS SES remains disabled
+as an optional future fallback. The observation-period and explicit Cloudflare Access
+client-enrollment gates still apply.

@@ -66,5 +66,21 @@ SES_WEBHOOKS_ENABLED=false
    `delivered`, and no secret or message body appears in deployment logs.
 7. Create a clean encrypted daily backup and run the backup-age check.
 
-Do not send client invitations until the domain, signed webhook, invitation, reset,
-and delivery-log checks all pass.
+## Production acceptance
+
+The release gate passed on July 24, 2026 with immutable SHA
+`8b8ba66202c83550fb60c1e90f79f78315d4be21`:
+
+- the domain and sender identity are verified;
+- the exact Cloudflare webhook bypass is active while the application remains behind
+  Access;
+- invalid signatures are rejected and signed replays are idempotent;
+- direct, password-reset, and invitation-template messages reached `delivered`;
+- the password-reset smoke token was invalidated and the invitation smoke created no
+  application state; and
+- the clean encrypted backup and backup-age checks passed.
+
+Resend is now the active production provider. AWS SES remains disabled as an optional
+future fallback. External client invitations still require the normal Cloudflare
+Access enrollment and client rollout approval; email delivery itself is no longer a
+blocker.
