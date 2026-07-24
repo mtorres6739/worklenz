@@ -27,7 +27,9 @@ async function request(path, options = {}) {
   const headers = {
     accept: "application/json",
     origin,
-    ...(options.body ? { "content-type": "application/json" } : {}),
+    ...(options.body && !options.formData
+      ? { "content-type": "application/json" }
+      : {}),
     ...(options.cookie ? { cookie: options.cookie } : {}),
     ...(options.csrf ? { "x-client-csrf": options.csrf } : {}),
     ...(options.headers || {}),
@@ -35,7 +37,11 @@ async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method || "GET",
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.formData
+      ? options.formData
+      : options.body
+        ? JSON.stringify(options.body)
+        : undefined,
     redirect: "manual",
   });
   let json = null;
@@ -570,6 +576,106 @@ async function run() {
     "read-only Client B request attachment upload",
   );
 
+  const cleanBytes = Buffer.from("%PDF-1.7\nisolated clean attachment\n");
+  const cleanForm = new FormData();
+  cleanForm.append(
+    "file",
+    new Blob([cleanBytes], { type: "application/pdf" }),
+    "portal-clean.pdf",
+  );
+  const cleanUpload = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments`,
+      {
+        method: "POST",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        formData: cleanForm,
+      },
+    ),
+    201,
+    "Client A clean request attachment upload",
+  );
+  invariant(
+    cleanUpload.body?.name === "portal-clean.pdf" &&
+      Number(cleanUpload.body?.size) === cleanBytes.length,
+    "clean attachment metadata did not match the uploaded file",
+  );
+  invariant(
+    !Object.prototype.hasOwnProperty.call(cleanUpload.body || {}, "object_key"),
+    "clean attachment upload exposed its private object key",
+  );
+
+  const cleanDownload = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments/${cleanUpload.body.id}/download`,
+      { cookie: a.cookie },
+    ),
+    200,
+    "Client A clean request attachment download",
+  );
+  const cleanObject = await fetch(cleanDownload.body.url);
+  invariant(cleanObject.ok, "clean attachment signed URL was not readable");
+  invariant(
+    Buffer.from(await cleanObject.arrayBuffer()).equals(cleanBytes),
+    "clean attachment download did not match its uploaded bytes",
+  );
+  expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments/${cleanUpload.body.id}`,
+      {
+        method: "DELETE",
+        cookie: a.cookie,
+        csrf: a.csrf,
+      },
+    ),
+    200,
+    "Client A clean request attachment deletion",
+  );
+
+  const eicarBytes = Buffer.from(
+    "58354f2150254041505b345c505a58353428505e2937434329377d2445494341522d5354414e444152442d414e544956495255532d544553542d46494c452124482b482a",
+    "hex",
+  );
+  const eicarForm = new FormData();
+  eicarForm.append(
+    "file",
+    new Blob([eicarBytes], { type: "text/plain" }),
+    "portal-malware-test.txt",
+  );
+  const blockedUpload = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments`,
+      {
+        method: "POST",
+        cookie: a.cookie,
+        csrf: a.csrf,
+        formData: eicarForm,
+      },
+    ),
+    400,
+    "Client A EICAR request attachment",
+  );
+  invariant(
+    blockedUpload.done === false &&
+      !JSON.stringify(blockedUpload).includes("Eicar"),
+    "malware rejection exposed scanner details",
+  );
+  const attachmentsAfterSmoke = expectStatus(
+    await request(
+      `/api/client-portal/requests/${fixture.a.requestId}/attachments`,
+      { cookie: a.cookie },
+    ),
+    200,
+    "Client A request attachments after upload smoke",
+  );
+  invariant(
+    attachmentsAfterSmoke.body.total === 1 &&
+      attachmentsAfterSmoke.body.attachments[0].id ===
+        fixture.a.requestAttachmentId,
+    "clean deletion or malware rejection left unexpected attachment metadata",
+  );
+
   const socketA = new PortalSocket(a.cookie);
   const socketB = new PortalSocket(b.cookie);
   const readyA = await socketA.connect();
@@ -607,7 +713,7 @@ async function run() {
   );
   invariant(audit.rows[0].count >= 4, "portal security activity was not recorded in the audit log");
 
-  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, services, requests, request attachments, audit, Socket.IO rooms, and logout revocation.");
+  console.log("Client Portal isolation rehearsal passed: auth, cookies, CSRF, APIs, comments, files, services, requests, clean private attachment upload/download/delete, EICAR rejection, audit, Socket.IO rooms, and logout revocation.");
 }
 
 run()

@@ -10,8 +10,8 @@ Released flags:
 - `FEATURE_PROJECT_FINANCE=true`
 - `FEATURE_CLIENT_PORTAL=true` for Wave 4 collaboration on the single-workspace,
   Cloudflare-protected internal pilot
-- `FEATURE_CLIENT_PORTAL_SERVICES=false`
-- `FEATURE_CLIENT_PORTAL_REQUESTS=false`
+- `FEATURE_CLIENT_PORTAL_SERVICES=true` for the internal pilot
+- `FEATURE_CLIENT_PORTAL_REQUESTS=true` for the internal pilot
 
 Implemented but fail-closed until provider configuration and independent integration
 gates pass:
@@ -57,8 +57,9 @@ identify the fork as AGPL-3.0 and link to the public corresponding source.
   [Client Portal collaboration](client-portal-collaboration.md).
 - Wave 5 Services and Requests now have an additive schema, original staff/client APIs,
   UI wiring, private request attachments, and independent fail-closed capabilities.
-  Production remains disabled until the candidate image passes restore-clone isolation,
-  real clean-upload/download/delete, malware rejection, and end-to-end browser gates.
+  The exact image passed restore-clone isolation, real private
+  clean-upload/download/delete, and malware rejection and is enabled for the internal
+  workspace. External client access remains gated by the separate-browser walkthrough.
   See
   [Client Portal services and requests](client-portal-services-requests.md).
 - Portal invoices, payments, chat, advertised provider integrations, and curated plugins

@@ -7,8 +7,9 @@ Wave 5 starts with two independently gated capabilities:
 
 Both require `FEATURE_CLIENT_PORTAL=true`. Requests also require Services. The
 backend capability response is authoritative, the staff and client navigation hide
-disabled areas, and direct disabled routes return 404. Keep both new flags false in
-production until the restore-clone and full Client A/Client B browser gates pass.
+disabled areas, and direct disabled routes return 404. Both capabilities are enabled
+for the Cloudflare-protected internal workspace after the release evidence below
+passed. The designated external client remains gated.
 
 Invoices, payments, and chat are not part of these flags. Their database/API/UI work
 must receive separate capabilities and isolation gates.
@@ -52,12 +53,11 @@ Implemented behind disabled flags:
 - tenant/client database and query isolation checks, including foreign attachment
   denial.
 
-Not yet releasable:
+Still outside the current internal-pilot acceptance:
 
 - request notifications and real-time events;
-- exact-image clean upload and EICAR rejection through the production API;
-- isolated production-restore API/browser rehearsal of the candidate image; and
-- production enablement.
+- a separate-browser walkthrough using a designated real client identity; and
+- external client enablement.
 
 The UI uploads one file at a time only after a request has a scoped ID. It never embeds
 base64 data, accepts client-supplied object references, or exposes object-storage keys.
@@ -128,3 +128,38 @@ The disabled foundation was released on 2026-07-24 as immutable commit
 This release installs only the gated foundation. Services and Requests remain hidden
 and inaccessible until private request attachments and the full restore-clone
 Client A/Client B isolation gate are complete.
+
+## Private attachment and internal-pilot release
+
+The private attachment release was deployed on 2026-07-24 as immutable commit
+`bea85796255201dccdfe39f5fbb11210375861df`.
+
+- [CI run 30121414922](https://github.com/mtorres6739/worklenz/actions/runs/30121414922)
+  passed CE typecheck, all tests, secret/filesystem scans, fresh-database migrations,
+  dependency gates, the self-hosted gate inventory, and the Sentry-disabled frontend
+  build.
+- [Immutable build 30121414998](https://github.com/mtorres6739/worklenz/actions/runs/30121414998)
+  built and scanned the four exact-SHA application images and independently scanned
+  the digest-pinned ClamAV image.
+- Deployment created encrypted backup
+  `postgres/pre-deploy/worklenz-20260724T194708Z.dump.age`.
+- Backend, frontend, PostgreSQL, Redis, and ClamAV were healthy; the gateway and public
+  health check passed.
+- The isolated restore rehearsal restored the newest encrypted daily backup, applied
+  the candidate migration chain, enabled the flags only inside the clone, and passed
+  Client A/Client B API, file, search, Socket.IO, CSRF, audit, and logout isolation.
+- The exact candidate backend uploaded a clean PDF through the real private object
+  storage path, downloaded identical bytes through a five-minute signed URL, deleted
+  the object and metadata, and rejected EICAR without leaving attachment metadata or
+  exposing the scanner signature.
+- Production was enabled in two steps: Services with Requests still false, then
+  Requests. The authenticated capability contract and both staff read APIs passed
+  after each restart.
+- Authenticated branding/project/task CRUD passed and removed its disposable fixtures.
+- Cloudflare returned the Access redirect for the app, the public health bypass
+  returned 200, and direct origin HTTPS remained blocked.
+
+The internal staff pilot now runs with
+`FEATURE_CLIENT_PORTAL_SERVICES=true` and
+`FEATURE_CLIENT_PORTAL_REQUESTS=true`. This does not authorize the designated external
+client pilot; that still requires the separate-browser walkthrough and pilot approval.

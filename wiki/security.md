@@ -73,7 +73,7 @@ tenant-scoped project grants. They never become staff owners, admins, team leads
 project managers. The released collaboration routes cover project/task reads,
 client-visible comments, project/task files, signed downloads, and isolated real-time
 rooms. Wave 5 Services and Requests, including private request attachments, are
-implemented behind disabled capabilities and remain inaccessible until the
-restore-clone plus production upload/malware gates pass. Invoices, payments, chat, and
-broader portal reports remain unrouted until their own authorization and isolation
-gates pass.
+enabled only for the Cloudflare-protected internal workspace after the restore-clone
+plus private upload/malware gates passed. The designated external client remains
+blocked pending its separate-browser walkthrough. Invoices, payments, chat, and broader
+portal reports remain unrouted until their own authorization and isolation gates pass.

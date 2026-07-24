@@ -12,6 +12,7 @@ set +a
 : "${BACKUP_AGE_IDENTITY_FILE:?Missing BACKUP_AGE_IDENTITY_FILE}"
 : "${BACKEND_IMAGE:?Missing immutable BACKEND_IMAGE}"
 : "${DATABASE_IMAGE:?Missing immutable DATABASE_IMAGE}"
+: "${CLAMAV_IMAGE:?Missing immutable CLAMAV_IMAGE}"
 
 script_file="${CLIENT_PORTAL_ISOLATION_SCRIPT:-$deploy_dir/scripts/client-portal-isolation.js}"
 [[ -f "$script_file" ]] || { echo "Missing $script_file" >&2; exit 1; }
@@ -20,12 +21,14 @@ tmp_dir="$(mktemp -d)"
 suffix="$(date +%s)-$$"
 database_container="worklenz-client-portal-db-${suffix}"
 backend_container="worklenz-client-portal-backend-${suffix}"
+clamav_container="worklenz-client-portal-clamav-${suffix}"
 tester_container="worklenz-client-portal-tester-${suffix}"
 network_name="worklenz-client-portal-${suffix}"
 test_origin="https://client-portal-isolation.invalid"
 
 cleanup() {
-  docker rm -f "$tester_container" "$backend_container" "$database_container" >/dev/null 2>&1 || true
+  docker rm -f "$tester_container" "$backend_container" "$clamav_container" \
+    "$database_container" >/dev/null 2>&1 || true
   docker network rm "$network_name" >/dev/null 2>&1 || true
   rm -rf "$tmp_dir"
 }
@@ -53,7 +56,10 @@ actual_checksum="$(sha256sum "$tmp_dir/backup.age" | awk '{ print $1 }')"
 age -d -i "$BACKUP_AGE_IDENTITY_FILE" -o "$tmp_dir/backup.dump" "$tmp_dir/backup.age"
 pg_restore --list "$tmp_dir/backup.dump" >/dev/null
 
-docker network create --internal "$network_name" >/dev/null
+# The disposable network publishes no ports. It deliberately permits egress so
+# the isolated backend can exercise the real private object-storage path and the
+# scanner can refresh its definitions.
+docker network create "$network_name" >/dev/null
 docker run -d --name "$database_container" --network "$network_name" --network-alias portal-db --user postgres \
   -e POSTGRES_USER=isolation -e POSTGRES_PASSWORD=isolation -e POSTGRES_DB=isolation \
   "$DATABASE_IMAGE" >/dev/null
@@ -89,12 +95,28 @@ docker run --rm --network "$network_name" \
 docker exec "$database_container" psql -U isolation -d isolation -Atc \
   "SELECT to_regclass('public.project_files') IS NOT NULL" | grep -qx t
 
+docker run -d --name "$clamav_container" --network "$network_name" \
+  --network-alias portal-clamav --security-opt no-new-privileges:true \
+  --pids-limit 256 -e CLAMAV_NO_CLAMD=false -e CLAMAV_NO_FRESHCLAMD=false \
+  -e FRESHCLAM_CHECKS=12 "$CLAMAV_IMAGE" >/dev/null
+for _ in {1..90}; do
+  if docker exec "$clamav_container" \
+    clamdscan --ping=1 --wait /etc/hostname >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+docker exec "$clamav_container" \
+  clamdscan --ping=1 --wait /etc/hostname >/dev/null
+
 docker run -d --name "$backend_container" --network "$network_name" --network-alias portal-backend \
   --env-file .env \
   -e DB_USER=isolation -e DB_PASSWORD=isolation -e DB_HOST=portal-db -e DB_PORT=5432 -e DB_NAME=isolation \
   -e PORT=3000 -e APP_ORIGIN="$test_origin" -e SOCKET_IO_CORS="$test_origin" \
   -e FEATURE_CLIENT_PORTAL=true -e FEATURE_CLIENT_PORTAL_SERVICES=true \
   -e FEATURE_CLIENT_PORTAL_REQUESTS=true -e IMPORT_WORKER_ENABLED=false \
+  -e PORTAL_ATTACHMENT_SCAN_MODE=clamav -e CLAMAV_HOST=portal-clamav \
+  -e CLAMAV_PORT=3310 -e CLAMAV_SCAN_TIMEOUT_MS=30000 \
   -e ENABLE_EMAIL_CRONJOBS=false -e ENABLE_RECURRING_JOBS=false \
   "$BACKEND_IMAGE" >/dev/null
 
