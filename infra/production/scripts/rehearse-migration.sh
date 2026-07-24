@@ -85,6 +85,15 @@ docker exec "$container_name" createdb -U rehearsal -O rehearsal rehearsal
 docker exec -i "$container_name" pg_restore -U rehearsal -d rehearsal \
   --no-owner --no-privileges < "$tmp_dir/backup.dump"
 
+# Daily backups can legitimately predate a prerequisite migration when multiple
+# additive waves ship between backup runs. Bring the restored clone through the
+# exact candidate image's complete controlled chain first. The target migration is
+# then replayed below with a separate migration table to prove its own idempotency.
+docker run --rm --network "$network_name" \
+  -e DB_USER=rehearsal -e DB_PASSWORD=rehearsal -e DB_HOST="$container_name" \
+  -e DB_PORT=5432 -e DB_NAME=rehearsal \
+  "$BACKEND_IMAGE" node scripts/migrate.js up
+
 run_migration() {
   docker run --rm --network "$network_name" \
     -v "$migration_dir:/rehearsal:ro" \
