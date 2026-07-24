@@ -28,7 +28,10 @@ export default function ClientPortalComments({ projectId, taskId }: ClientPortal
   const { socket } = useSocket();
   const { data, isLoading, error, refetch } = useGetClientPortalTaskCommentsQuery(
     { projectId, taskId },
-    { skip: !projectId || !taskId }
+    {
+      skip: !projectId || !taskId,
+      refetchOnMountOrArgChange: true,
+    }
   );
   const [addComment, { isLoading: isSending }] = useAddClientPortalTaskCommentMutation();
 
@@ -67,13 +70,19 @@ export default function ClientPortalComments({ projectId, taskId }: ClientPortal
       <List
         loading={isLoading}
         dataSource={comments}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No client portal messages" /> }}
+        locale={{
+          emptyText: (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No client portal messages" />
+          ),
+        }}
         renderItem={item => (
           <List.Item>
             <List.Item.Meta
               avatar={
                 <Avatar
-                  icon={item.sender_type === 'client' ? <CustomerServiceOutlined /> : <TeamOutlined />}
+                  icon={
+                    item.sender_type === 'client' ? <CustomerServiceOutlined /> : <TeamOutlined />
+                  }
                 />
               }
               title={
@@ -86,7 +95,9 @@ export default function ClientPortalComments({ projectId, taskId }: ClientPortal
               }
               description={
                 <Flex vertical gap={4}>
-                  <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.comment}</Typography.Text>
+                  <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>
+                    {item.comment}
+                  </Typography.Text>
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     {new Date(item.created_at).toLocaleString()}
                   </Typography.Text>
